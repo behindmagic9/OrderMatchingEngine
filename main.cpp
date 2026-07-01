@@ -17,24 +17,22 @@ struct Order {
 };
 
 struct Trade {
-    int SELLId;
-    int BUYID;
+    int OrderId;
     int quant;
     int price;
 };
 
+std::vector<Trade> trades;
 std::queue<Order> qe;
 
 std::map<int, std::queue<Order> , std::greater<int>> BUY;
 std::map<int, std::queue<Order>> SELL;
 
 void Producer() {
-    for (int i = 0; i < 5; i++) {
-        qe.push(Order{ i,'B',i * 4, 35 });
-        qe.push(Order{ i,'S',i * 2, 20 });
-        qe.push(Order{ i,'B',i * 4, 30 });
-        qe.push(Order{ i,'S',i * 2, 25 });
-    }
+	qe.push(Order{ 1,'B',1 * 4, 35 });
+	qe.push(Order{ 2,'S',3 * 2, 20 });
+	qe.push(Order{ 3,'B',5 * 4, 30 });
+	qe.push(Order{ 4,'S',6 * 2, 25 });
 }
 
 void ProcessBUY(Order order) {
@@ -52,6 +50,8 @@ void ProcessBUY(Order order) {
             int quant = std::min(ord.quantity, order.quantity);
 
             // trade is heppenig so will record trade obejct here 
+	    Trade t{order.orderId,order.price,order.quantity};
+	    trades.push_back(t);
 
             order.quantity -= quant;
             ord.quantity -= quant;
@@ -95,6 +95,9 @@ void ProcessSELL(Order order) {
         while (order.quantity > 0 && !q.empty()) {
             auto& ord = q.front();
             int quant = std::min(ord.quantity, order.quantity);
+            // trade is heppenig so will record trade obejct here 
+	    Trade t{order.orderId,order.price,order.quantity};
+	    trades.push_back(t);
             order.quantity -= quant;
             ord.quantity -= quant;
             if (ord.quantity == 0) {
@@ -160,11 +163,18 @@ void ProcessOrder(Order order) {
     }
 }
 
+void PrintTrades(){
+        for(int i =0;i<trades.size();i++){
+        	std::cout << "order id : " << trades[i].OrderId << " price is: " << trades[i].price << "quantity is: " << trades[i].quant << std::endl;
+        }
+}
+
 void Consumer() {
     while (!qe.empty()) {
         Order temp = qe.front();
         qe.pop();
         ProcessOrder(temp);
+        PrintTrades();
        // std::cout << "order id : " << temp.orderId << "side : " << temp.side << " price: " << temp.price << std::endl;
     }
 }
