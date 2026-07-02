@@ -2,6 +2,7 @@
 #include<queue>
 #include<map>
 #include<algorithm>
+#include<vector>
 // producer
 // consumer
 // while(true)
@@ -17,7 +18,8 @@ struct Order {
 };
 
 struct Trade {
-    int OrderId;
+    int BuyId;
+    int SellId;
     int quant;
     int price;
 };
@@ -35,6 +37,16 @@ void Producer() {
 	qe.push(Order{ 4,'S',6 * 2, 25 });
 }
 
+void RecordTrade(Order &incoming, Order &recieving , int quantity , int price){
+     Trade t{
+    	incoming.side == 'B' ? incoming.orderId : recieving.orderId,
+    	incoming.side == 'S' ? incoming.orderId : recieving.orderId,
+    	quantity,
+    	price
+    };
+    trades.push_back(t);
+}
+
 void ProcessBUY(Order order) {
     auto it = SELL.begin();
     while (order.quantity > 0 && it != SELL.end()) {
@@ -50,8 +62,7 @@ void ProcessBUY(Order order) {
             int quant = std::min(ord.quantity, order.quantity);
 
             // trade is heppenig so will record trade obejct here 
-	    Trade t{order.orderId,order.price,order.quantity};
-	    trades.push_back(t);
+	    RecordTrade(order, ord, quant, it->first);
 
             order.quantity -= quant;
             ord.quantity -= quant;
@@ -96,8 +107,7 @@ void ProcessSELL(Order order) {
             auto& ord = q.front();
             int quant = std::min(ord.quantity, order.quantity);
             // trade is heppenig so will record trade obejct here 
-	    Trade t{order.orderId,order.price,order.quantity};
-	    trades.push_back(t);
+	    RecordTrade(order, ord, quant, it->first);
             order.quantity -= quant;
             ord.quantity -= quant;
             if (ord.quantity == 0) {
@@ -118,12 +128,8 @@ void ProcessSELL(Order order) {
     }
     if (order.quantity > 0) {
         // marking this as partial filled
-        std::cout << "partial filled sell" << std::endl;
+        std::cout << "partial filled remain saved to orderbook" << std::endl;
         SELL[order.price].push(order);
-    }
-    else {
-        std::cout << "trade successfull in sell" << std::endl;
-        // order executed successfully
     }
 }
 
@@ -147,25 +153,16 @@ void ProcessOrder(Order order) {
         else {
             ProcessSELL(order);
         }
-        // if nothign in that order queue just insert directly in that mean store in same order book .. look in opp and push in same type
-        // if already present there then look into that order queue and see that back of that queue, if that is less than or equal to the BUY price
-        // if that is then execute that trade and iterate from reverse into the queue and go until trade is executng and quanitty does not get zero
-        // look into the SELL map and see if it can match the
-        // lower sell side
-        // if yes substract the quantity until it wont trade condition
-        // then store in orderbook of BUY
-        //Order temp = BUY[order.price].front();
-        // same like above
-        // if not found will store in SELL orderbook
     }
     else {
         // nothgin dropp it jsut , not meainngful for us
+	std::cout << "invalid side given " << std::endl;
     }
 }
 
 void PrintTrades(){
         for(int i =0;i<trades.size();i++){
-        	std::cout << "order id : " << trades[i].OrderId << " price is: " << trades[i].price << "quantity is: " << trades[i].quant << std::endl;
+        	std::cout << "Buyer id : " << trades[i].BuyId <<  " seller ID : " << trades[i].SellId << " price is: " << trades[i].price << " quantity is: " << trades[i].quant << std::endl;
         }
 }
 
@@ -174,13 +171,39 @@ void Consumer() {
         Order temp = qe.front();
         qe.pop();
         ProcessOrder(temp);
-        PrintTrades();
        // std::cout << "order id : " << temp.orderId << "side : " << temp.side << " price: " << temp.price << std::endl;
     }
+}
+
+void PrintOrderBook(){
+	std::cout << "BUY\n";
+	for(auto &level : BUY){
+		int total=0;
+		auto q = level.second;
+		while(!q.empty())
+		{
+			total+= q.front().quantity;
+			q.pop();
+		}
+		std::cout << "price " <<level.first << " quantity " << total << "\n";
+	}
+	
+	std::cout << "SELL\n";
+	for(auto &level:SELL){
+		int total =0;
+		auto q = level.second;
+		while(!q.empty()){
+			total += q.front().quantity;
+			q.pop();
+		}
+		std::cout << "price " <<level.first << " quantity " << total << "\n";
+	}
 }
 
 int main() {
     Producer();
     Consumer();
+    PrintTrades();
+    PrintOrderBook();
     return 0;
 }
