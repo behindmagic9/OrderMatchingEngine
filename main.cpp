@@ -1,8 +1,10 @@
 #include<iostream>
 #include<queue>
 #include<map>
+#include<unordered_map>
 #include<algorithm>
 #include<vector>
+#include<list>
 // producer
 // consumer
 // while(true)
@@ -27,22 +29,26 @@ struct Trade {
 std::vector<Trade> trades;
 std::queue<Order> qe;
 
-std::map<int, std::queue<Order> , std::greater<int>> BUY;
-std::map<int, std::queue<Order>> SELL;
+std::map<int, std::list<Order>, std::greater<int>> BUY;
+std::map<int, std::list<Order>> SELL;
+
+// cancell order , for that have to track each orders pointer in a seprate record , and will directly remove that pointer from that side of map in o(1)
+//  as the second part also contain queue and queue does not have O(1) removal so we will find the iterator to it and then remove that instantly
+std::unordered_map<int, std::list<Order>::iterator> OrderPointersStore; // orderid, iterator
 
 void Producer() {
-	qe.push(Order{ 1,'B',1 * 4, 35 });
-	qe.push(Order{ 2,'S',3 * 2, 20 });
-	qe.push(Order{ 3,'B',5 * 4, 30 });
-	qe.push(Order{ 4,'S',6 * 2, 25 });
+    qe.push(Order{ 1,'B',1 * 4, 35 });
+    qe.push(Order{ 2,'S',3 * 2, 20 });
+    qe.push(Order{ 3,'B',5 * 4, 30 });
+    qe.push(Order{ 4,'S',6 * 2, 25 });
 }
 
 void RecordTrade(Order &incoming, Order &recieving , int quantity , int price){
-     Trade t{
-    	incoming.side == 'B' ? incoming.orderId : recieving.orderId,
-    	incoming.side == 'S' ? incoming.orderId : recieving.orderId,
-    	quantity,
-    	price
+    Trade t{
+        incoming.side == 'B' ? incoming.orderId : recieving.orderId,
+        incoming.side == 'S' ? incoming.orderId : recieving.orderId,
+        quantity,
+        price
     };
     trades.push_back(t);
 }
@@ -56,18 +62,19 @@ void ProcessBUY(Order order) {
             // and also help in breaking while LOOP
             break;
         }
-        auto& q = it->second;
+        auto &q = it->second;
         while (order.quantity > 0 && !q.empty()) {
-            auto& ord = q.front();
+            auto &ord = q.front();
             int quant = std::min(ord.quantity, order.quantity);
 
-            // trade is heppenig so will record trade obejct here 
-	    RecordTrade(order, ord, quant, it->first);
+            // trade is heppenig so will record trade obejct here
+            RecordTrade(order, ord, quant, it->first);
 
             order.quantity -= quant;
             ord.quantity -= quant;
             if (ord.quantity == 0) {
-                it->second.pop();
+                OrderPointersStore.erase(ord.orderId);
+                it->second.pop_front();
             }
         }
         if (q.empty()) {
@@ -79,13 +86,15 @@ void ProcessBUY(Order order) {
         // look into the queue and take the first elem adn match the trade with that
         // Order temp = it->second.front();
         // here ahvet o subtrat this from the quqnity til order complete
-        // or just do while(!(order.price < it->first && order.quantity <= 0)){} 
-        //in mid return if quantity is done , then return the TRade struct
+        // or just do while(!(order.price < it->first && order.quantity <= 0)){}
+        // in mid return if quantity is done , then return the TRade struct
     }
     if (order.quantity > 0) {
         // marking this as partial filled
         std::cout << "partial filled buy" << std::endl;
-        BUY[order.price].push(order);
+        BUY[order.price].push_back(order);
+        auto it = std::prev(BUY[order.price].end());
+        OrderPointersStore[order.orderId] = it;
     }
     else {
         std::cout << "trade successfull in buy" << std::endl;
@@ -102,16 +111,17 @@ void ProcessSELL(Order order) {
             // and also help in breaking while LOOP
             break;
         }
-        auto& q = it->second;
+        auto &q = it->second;
         while (order.quantity > 0 && !q.empty()) {
-            auto& ord = q.front();
+            auto &ord = q.front();
             int quant = std::min(ord.quantity, order.quantity);
-            // trade is heppenig so will record trade obejct here 
-	    RecordTrade(order, ord, quant, it->first);
+            // trade is heppenig so will record trade obejct here
+            RecordTrade(order, ord, quant, it->first);
             order.quantity -= quant;
             ord.quantity -= quant;
             if (ord.quantity == 0) {
-                it->second.pop();
+                OrderPointersStore.erase(ord.orderId);
+                it->second.pop_front();
             }
         }
         if (q.empty()) {
@@ -123,13 +133,15 @@ void ProcessSELL(Order order) {
         // look into the queue and take the first elem adn match the trade with that
         // Order temp = it->second.front();
         // here ahvet o subtrat this from the quqnity til order complete
-        // or just do while(!(order.price < it->first && order.quantity <= 0)){} 
-        //in mid return if quantity is done , then return the TRade struct
+        // or just do while(!(order.price < it->first && order.quantity <= 0)){}
+        // in mid return if quantity is done , then return the TRade struct
     }
     if (order.quantity > 0) {
         // marking this as partial filled
         std::cout << "partial filled remain saved to orderbook" << std::endl;
-        SELL[order.price].push(order);
+        SELL[order.price].push_back(order);
+        auto it = std::prev(SELL[order.price].end());
+        OrderPointersStore[order.orderId] = it;
     }
 }
 
@@ -139,7 +151,9 @@ void ProcessOrder(Order order) {
         // if null then inet directly
         if (SELL.empty()) {
             std::cout << "directly pushed to buy" << std::endl;
-            BUY[order.price].push(order);
+            BUY[order.price].push_back(order);
+            auto it = std::prev(BUY[order.price].end());
+            OrderPointersStore[order.orderId] = it;
         }
         else {
             ProcessBUY(order);
@@ -148,7 +162,9 @@ void ProcessOrder(Order order) {
     else if (order.side == 'S') {
         if (BUY.empty()) {
             std::cout << "directly pushed to sell" << std::endl;
-            SELL[order.price].push(order);
+            SELL[order.price].push_back(order);
+            auto it = std::prev(SELL[order.price].end());
+            OrderPointersStore[order.orderId] = it;
         }
         else {
             ProcessSELL(order);
@@ -156,14 +172,14 @@ void ProcessOrder(Order order) {
     }
     else {
         // nothgin dropp it jsut , not meainngful for us
-	std::cout << "invalid side given " << std::endl;
+        std::cout << "invalid side given " << std::endl;
     }
 }
 
 void PrintTrades(){
-        for(int i =0;i<trades.size();i++){
-        	std::cout << "Buyer id : " << trades[i].BuyId <<  " seller ID : " << trades[i].SellId << " price is: " << trades[i].price << " quantity is: " << trades[i].quant << std::endl;
-        }
+    for(int i =0;i<trades.size();i++){
+        std::cout << "Buyer id : " << trades[i].BuyId << " seller ID : " << trades[i].SellId << " price is: " << trades[i].price << " quantity is: " << trades[i].quant << std::endl;
+    }
 }
 
 void Consumer() {
@@ -171,39 +187,63 @@ void Consumer() {
         Order temp = qe.front();
         qe.pop();
         ProcessOrder(temp);
-       // std::cout << "order id : " << temp.orderId << "side : " << temp.side << " price: " << temp.price << std::endl;
+        // std::cout << "order id : " << temp.orderId << "side : " << temp.side << " price: " << temp.price << std::endl;
     }
 }
 
 void PrintOrderBook(){
-	std::cout << "BUY\n";
-	for(auto &level : BUY){
-		int total=0;
-		auto q = level.second;
-		while(!q.empty())
-		{
-			total+= q.front().quantity;
-			q.pop();
-		}
-		std::cout << "price " <<level.first << " quantity " << total << "\n";
-	}
-	
-	std::cout << "SELL\n";
-	for(auto &level:SELL){
-		int total =0;
-		auto q = level.second;
-		while(!q.empty()){
-			total += q.front().quantity;
-			q.pop();
-		}
-		std::cout << "price " <<level.first << " quantity " << total << "\n";
-	}
+    std::cout << "BUY >> ";
+
+    for(const auto &p : BUY){
+        int total =0;
+        for(const auto &ord : p.second){
+            total +=ord.quantity;
+        }
+        std::cout << "price : " << p.first << " quanitity "  << total << std::endl;
+    }  
+    
+    std::cout << "SELL >> ";
+    
+    for(const auto &p : SELL){
+        int total =0;
+        for(const auto &ord : p.second){
+            total +=ord.quantity;
+        }
+        std::cout << "price : " << p.first << " quanitity "  << total << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void CancelOrder(int Orderid){
+    auto p = OrderPointersStore.find(Orderid);
+    if(p == OrderPointersStore.end()){
+        std::cout << "return" << std::endl;
+        return;
+    }
+    auto it = p->second;
+    Order &ord = *it;
+    if(ord.side == 'B'){
+        std::cout << "from b" << std::endl;
+        auto &lst = BUY[ord.price];
+        lst.erase(it);
+        if(lst.empty())
+            BUY.erase(ord.price);
+    }else{
+        std::cout << "from s" << std::endl;
+        auto &lst = SELL[ord.price];
+        lst.erase(it);
+        if(lst.empty())
+            SELL.erase(ord.price);
+    }
+    OrderPointersStore.erase(p);
 }
 
 int main() {
     Producer();
     Consumer();
     PrintTrades();
+    PrintOrderBook();
+    CancelOrder(4);
     PrintOrderBook();
     return 0;
 }
