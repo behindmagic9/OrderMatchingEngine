@@ -26,6 +26,12 @@ struct Trade {
     int price;
 };
 
+struct OrderRef{
+    int price;
+    char side;
+    std::list<Order>::iterator iterator;
+};
+
 std::vector<Trade> trades;
 std::queue<Order> qe;
 
@@ -34,7 +40,7 @@ std::map<int, std::list<Order>> SELL;
 
 // cancell order , for that have to track each orders pointer in a seprate record , and will directly remove that pointer from that side of map in o(1)
 //  as the second part also contain queue and queue does not have O(1) removal so we will find the iterator to it and then remove that instantly
-std::unordered_map<int, std::list<Order>::iterator> OrderPointersStore; // orderid, iterator
+std::unordered_map<int, OrderRef> OrderPointersStore; // orderid, iterator
 
 void Producer() {
     qe.push(Order{ 1,'B',1 * 4, 35 });
@@ -53,7 +59,29 @@ void RecordTrade(Order &incoming, Order &recieving , int quantity , int price){
     trades.push_back(t);
 }
 
-void ProcessBUY(Order order) {
+bool Validator(Order& order){
+    if(order.orderId <= 0) return false;
+    if(order.quantity <= 0) return false;
+    if(order.price <=0) return false;
+    if (order.side != 'B' && order.side != 'S') return false;
+    return true;
+}
+
+
+void AddToOrderBook(const Order &order){
+    if(order.side == 'B'){
+        BUY[order.price].push_back(order);
+        auto it = std::prev(BUY[order.price].end());
+        OrderPointersStore[order.orderId] = {order.price,order.side,it};
+    }else{
+        SELL[order.price].push_back(order);
+        auto it = std::prev(SELL[order.price].end());
+        OrderPointersStore[order.orderId] = {order.price,order.side,it};
+    }
+}
+
+void ProcessBUY(Order &order) {
+    int originalQuantity = order.quantity;
     auto it = SELL.begin();
     while (order.quantity > 0 && it != SELL.end()) {
         if (it->first > order.price) {
@@ -81,7 +109,7 @@ void ProcessBUY(Order order) {
             it = SELL.erase(it);
         }
         else {
-            it++;
+            break;
         }
         // look into the queue and take the first elem adn match the trade with that
         // Order temp = it->second.front();
@@ -89,20 +117,19 @@ void ProcessBUY(Order order) {
         // or just do while(!(order.price < it->first && order.quantity <= 0)){}
         // in mid return if quantity is done , then return the TRade struct
     }
-    if (order.quantity > 0) {
+
+    if (order.quantity == 0){
+        std::cout << "order fullfilled " << std::endl;
+    }else if(order.quantity < originalQuantity){
         // marking this as partial filled
-        std::cout << "partial filled buy" << std::endl;
-        BUY[order.price].push_back(order);
-        auto it = std::prev(BUY[order.price].end());
-        OrderPointersStore[order.orderId] = it;
-    }
-    else {
-        std::cout << "trade successfull in buy" << std::endl;
-        // order executed successfully
+        AddToOrderBook(order);
+    }else{
+        AddToOrderBook(order);
     }
 }
 
-void ProcessSELL(Order order) {
+void ProcessSELL(Order &order) {
+    int originalQuantity = order.quantity;
     auto it = BUY.begin();
     while (order.quantity > 0 && it != BUY.end()) {
         if (it->first < order.price) {
@@ -128,7 +155,7 @@ void ProcessSELL(Order order) {
             it = BUY.erase(it);
         }
         else {
-            it++;
+            break;
         }
         // look into the queue and take the first elem adn match the trade with that
         // Order temp = it->second.front();
@@ -136,43 +163,37 @@ void ProcessSELL(Order order) {
         // or just do while(!(order.price < it->first && order.quantity <= 0)){}
         // in mid return if quantity is done , then return the TRade struct
     }
-    if (order.quantity > 0) {
+    if (order.quantity == 0){
+        std::cout << "order fullfilled " << std::endl;
+    }else if(order.quantity < originalQuantity){
         // marking this as partial filled
         std::cout << "partial filled remain saved to orderbook" << std::endl;
-        SELL[order.price].push_back(order);
-        auto it = std::prev(SELL[order.price].end());
-        OrderPointersStore[order.orderId] = it;
+        AddToOrderBook(order);
+    }else{
+        AddToOrderBook(order);
     }
 }
 
-void ProcessOrder(Order order) {
+void ProcessOrder(Order &order) {
     if (order.side == 'B') {
         // first have to see if the map is null or not
         // if null then inet directly
         if (SELL.empty()) {
             std::cout << "directly pushed to buy" << std::endl;
-            BUY[order.price].push_back(order);
-            auto it = std::prev(BUY[order.price].end());
-            OrderPointersStore[order.orderId] = it;
+            AddToOrderBook(order);
         }
         else {
             ProcessBUY(order);
         }
     }
-    else if (order.side == 'S') {
+    else {
         if (BUY.empty()) {
             std::cout << "directly pushed to sell" << std::endl;
-            SELL[order.price].push_back(order);
-            auto it = std::prev(SELL[order.price].end());
-            OrderPointersStore[order.orderId] = it;
+            AddToOrderBook(order);
         }
         else {
             ProcessSELL(order);
         }
-    }
-    else {
-        // nothgin dropp it jsut , not meainngful for us
-        std::cout << "invalid side given " << std::endl;
     }
 }
 
@@ -186,7 +207,12 @@ void Consumer() {
     while (!qe.empty()) {
         Order temp = qe.front();
         qe.pop();
-        ProcessOrder(temp);
+        if(!Validator(temp)){
+            std::cout << " validation of order id : " << temp.orderId << " : failed " << std::endl;
+            continue;
+        }else{
+            ProcessOrder(temp);
+        }
         // std::cout << "order id : " << temp.orderId << "side : " << temp.side << " price: " << temp.price << std::endl;
     }
 }
@@ -220,20 +246,25 @@ void CancelOrder(int Orderid){
         std::cout << "return" << std::endl;
         return;
     }
-    auto it = p->second;
-    Order &ord = *it;
-    if(ord.side == 'B'){
+    auto &it = p->second;
+    if(it.side == 'B'){
         std::cout << "from b" << std::endl;
-        auto &lst = BUY[ord.price];
-        lst.erase(it);
-        if(lst.empty())
-            BUY.erase(ord.price);
+        auto lst = BUY.find(it.price);
+        if(lst != BUY.end()){
+            lst->second.erase(it.iterator);
+            if(lst->second.empty()){
+                BUY.erase(it.price);
+            }
+        }
     }else{
         std::cout << "from s" << std::endl;
-        auto &lst = SELL[ord.price];
-        lst.erase(it);
-        if(lst.empty())
-            SELL.erase(ord.price);
+        auto lst = SELL.find(it.price);
+        if(lst != SELL.end()){
+            lst->second.erase(it.iterator);
+            if(lst->second.empty()){
+                SELL.erase(it.price);
+            }
+        }
     }
     OrderPointersStore.erase(p);
 }
