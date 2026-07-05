@@ -12,11 +12,21 @@
 // we will have a queue and then produer will fill that queue by publihshing a nd consumer will take that queue and consume frmo it
 // its all in synchronization or in order
 
+enum class Status{
+    NEW,
+    OPEN,
+    FILLED,
+    PARTIAL_FILLED,
+    CANCELLED,
+    REJECTED
+};
+
 struct Order {
     int orderId;
     char side;
     int price;
     int quantity;
+    Status status;
 };
 
 struct Trade {
@@ -43,10 +53,11 @@ std::map<int, std::list<Order>> SELL;
 std::unordered_map<int, OrderRef> OrderPointersStore; // orderid, iterator
 
 void Producer() {
-    qe.push(Order{ 1,'B',1 * 4, 35 });
-    qe.push(Order{ 2,'S',3 * 2, 20 });
-    qe.push(Order{ 3,'B',5 * 4, 30 });
-    qe.push(Order{ 4,'S',6 * 2, 25 });
+    int id = 1;
+    qe.push(Order{ id++,'B',1 * 4, 35,Status::NEW});
+    qe.push(Order{ id++,'S',3 * 2, 20,Status::NEW});
+    qe.push(Order{ id++,'B',5 * 4, 30,Status::NEW});
+    qe.push(Order{ id++,'S',6 * 2, 25,Status::NEW});
 }
 
 void RecordTrade(Order &incoming, Order &recieving , int quantity , int price){
@@ -101,8 +112,11 @@ void ProcessBUY(Order &order) {
             order.quantity -= quant;
             ord.quantity -= quant;
             if (ord.quantity == 0) {
+                ord.status =  Status::FILLED;
                 OrderPointersStore.erase(ord.orderId);
                 it->second.pop_front();
+            }else{
+                ord.status = Status::PARTIAL_FILLED;
             }
         }
         if (q.empty()) {
@@ -119,11 +133,14 @@ void ProcessBUY(Order &order) {
     }
 
     if (order.quantity == 0){
+        order.status = Status::FILLED;
         std::cout << "order fullfilled " << std::endl;
     }else if(order.quantity < originalQuantity){
         // marking this as partial filled
+        order.status = Status::PARTIAL_FILLED;
         AddToOrderBook(order);
     }else{
+        order.status = Status::OPEN;
         AddToOrderBook(order);
     }
 }
@@ -147,8 +164,11 @@ void ProcessSELL(Order &order) {
             order.quantity -= quant;
             ord.quantity -= quant;
             if (ord.quantity == 0) {
+                ord.status = Status::FILLED;
                 OrderPointersStore.erase(ord.orderId);
                 it->second.pop_front();
+            }else{
+                ord.status = Status::PARTIAL_FILLED;
             }
         }
         if (q.empty()) {
@@ -164,21 +184,85 @@ void ProcessSELL(Order &order) {
         // in mid return if quantity is done , then return the TRade struct
     }
     if (order.quantity == 0){
+        order.status = Status::FILLED;
         std::cout << "order fullfilled " << std::endl;
     }else if(order.quantity < originalQuantity){
         // marking this as partial filled
+        order.status = Status::PARTIAL_FILLED;
         std::cout << "partial filled remain saved to orderbook" << std::endl;
         AddToOrderBook(order);
     }else{
+        order.status = Status::OPEN;
         AddToOrderBook(order);
     }
 }
 
+void CancelOrder(int Orderid){
+    auto p = OrderPointersStore.find(Orderid);
+    if(p == OrderPointersStore.end()){
+        std::cout << "return" << std::endl;
+        return;
+    }
+    auto &it = p->second;
+    it.iterator->status = Status::CANCELLED;
+    if(it.side == 'B'){
+        std::cout << "from b" << std::endl;
+        auto lst = BUY.find(it.price);
+        if(lst != BUY.end()){
+            lst->second.erase(it.iterator);
+            if(lst->second.empty()){
+                BUY.erase(lst);
+            }
+        }
+    }else{
+        std::cout << "from s" << std::endl;
+        auto lst = SELL.find(it.price);
+        if(lst != SELL.end()){
+            lst->second.erase(it.iterator);
+            if(lst->second.empty()){
+                SELL.erase(lst);
+            }
+        }
+    }
+    OrderPointersStore.erase(p);
+}
+
+void ModifyOrder(int orderId , int newprice=-1, int newquantity=-1 ,char newside = '\0'){
+    auto it = OrderPointersStore.find(orderId);
+    if (it == OrderPointersStore.end()){
+        return ;// so such order
+    }
+    Order oldOrder = *(it->second.iterator);
+    bool priceChanged = (newprice != -1 && newprice != oldOrder.price);
+    bool quantityIncreased = (newquantity != -1 && newquantity > oldOrder.quantity);
+    bool sideChanged = (newside !='\0' && newside != oldOrder.side);
+
+    if(!priceChanged  && !quantityIncreased && !sideChanged){
+        it->second.iterator->quantity = newquantity;
+        return;
+    }
+    //Nee cancel order ad  repalce
+    CancelOrder(orderId);
+    if(!(newprice == -1)){
+        oldOrder.price = newprice;
+    }
+    if(!(newquantity == -1)){
+        oldOrder.quantity = newquantity;
+    }
+    if(!(newside == '\0')){
+        oldOrder.side = newside;
+    }
+
+    oldOrder.status = Status::NEW;
+    qe.push(oldOrder);
+}
+ 
 void ProcessOrder(Order &order) {
     if (order.side == 'B') {
         // first have to see if the map is null or not
         // if null then inet directly
         if (SELL.empty()) {
+            order.status = Status::OPEN;
             std::cout << "directly pushed to buy" << std::endl;
             AddToOrderBook(order);
         }
@@ -188,6 +272,7 @@ void ProcessOrder(Order &order) {
     }
     else {
         if (BUY.empty()) {
+            order.status = Status::OPEN;
             std::cout << "directly pushed to sell" << std::endl;
             AddToOrderBook(order);
         }
@@ -208,7 +293,8 @@ void Consumer() {
         Order temp = qe.front();
         qe.pop();
         if(!Validator(temp)){
-            std::cout << " validation of order id : " << temp.orderId << " : failed " << std::endl;
+            temp.status = Status::REJECTED;
+            std::cout << " validation of order id : " << temp.orderId << " : failed with status : Rejected " << std::endl;
             continue;
         }else{
             ProcessOrder(temp);
@@ -240,34 +326,6 @@ void PrintOrderBook(){
     std::cout << std::endl;
 }
 
-void CancelOrder(int Orderid){
-    auto p = OrderPointersStore.find(Orderid);
-    if(p == OrderPointersStore.end()){
-        std::cout << "return" << std::endl;
-        return;
-    }
-    auto &it = p->second;
-    if(it.side == 'B'){
-        std::cout << "from b" << std::endl;
-        auto lst = BUY.find(it.price);
-        if(lst != BUY.end()){
-            lst->second.erase(it.iterator);
-            if(lst->second.empty()){
-                BUY.erase(it.price);
-            }
-        }
-    }else{
-        std::cout << "from s" << std::endl;
-        auto lst = SELL.find(it.price);
-        if(lst != SELL.end()){
-            lst->second.erase(it.iterator);
-            if(lst->second.empty()){
-                SELL.erase(it.price);
-            }
-        }
-    }
-    OrderPointersStore.erase(p);
-}
 
 int main() {
     Producer();
