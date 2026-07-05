@@ -238,11 +238,11 @@ void ModifyOrder(int orderId , int newprice=-1, int newquantity=-1 ,char newside
     bool sideChanged = (newside !='\0' && newside != oldOrder.side);
 
     if(!priceChanged  && !quantityIncreased && !sideChanged){
-        it->second.iterator->quantity = newquantity;
+        if(newquantity != -1){
+            it->second.iterator->quantity = newquantity;
+        }
         return;
     }
-    //Nee cancel order ad  repalce
-    CancelOrder(orderId);
     if(!(newprice == -1)){
         oldOrder.price = newprice;
     }
@@ -252,7 +252,14 @@ void ModifyOrder(int orderId , int newprice=-1, int newquantity=-1 ,char newside
     if(!(newside == '\0')){
         oldOrder.side = newside;
     }
-
+    
+    if(!Validator(oldOrder)){
+        std::cout << " invalid mofications : rejected by validator" << std::endl;
+        return;
+    }
+    
+    //Nee cancel order ad  repalce
+    CancelOrder(orderId);
     oldOrder.status = Status::NEW;
     qe.push(oldOrder);
 }
