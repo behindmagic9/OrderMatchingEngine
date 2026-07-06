@@ -54,11 +54,15 @@ std::unordered_map<int, OrderRef> OrderPointersStore; // orderid, iterator
 
 void Producer() {
     int id = 1;
-    qe.push(Order{ id++,'B',1 * 4, 35,Status::NEW});
-    qe.push(Order{ id++,'S',3 * 2, 20,Status::NEW});
-    qe.push(Order{ id++,'B',5 * 4, 30,Status::NEW});
-    qe.push(Order{ id++,'S',6 * 2, 25,Status::NEW});
-}
+    qe.push(Order{ id++,'B',105, 100,Status::NEW});
+    qe.push(Order{ id++,'S',103, 100,Status::NEW});
+    qe.push(Order{ id++,'B',105,100,Status::NEW});
+    qe.push(Order{ id++,'S',103, 40,Status::NEW});
+    qe.push(Order{ id++,'B',100,100,Status::NEW});
+    qe.push(Order{ id++,'S',101, 100,Status::NEW});
+    qe.push(Order{ id++,'B',105,100,Status::NEW});
+    qe.push(Order{ id++,'S',100, 100,Status::NEW});
+}   
 
 void RecordTrade(Order &incoming, Order &recieving , int quantity , int price){
     Trade t{
@@ -91,16 +95,15 @@ void AddToOrderBook(const Order &order){
     }
 }
 
-void ProcessBUY(Order &order) {
+template<typename OppositeBook, typename Compare>
+void MatchOrder(Order &order, OppositeBook &oppositeBook, Compare comp){
     int originalQuantity = order.quantity;
-    auto it = SELL.begin();
-    while (order.quantity > 0 && it != SELL.end()) {
-        if (it->first > order.price) {
+    auto it = oppositeBook.begin();
+    while (order.quantity > 0 && it != oppositeBook.end() && comp(order.price,it->first)) {
             // break when sell price is greater than order buy price cause , terminate condition is (sell > buy)
             // will help in optimization too not loop in map ,and directly come to conclusion
             // and also help in breaking while LOOP
-            break;
-        }
+
         auto &q = it->second;
         while (order.quantity > 0 && !q.empty()) {
             auto &ord = q.front();
@@ -109,18 +112,19 @@ void ProcessBUY(Order &order) {
             // trade is heppenig so will record trade obejct here
             RecordTrade(order, ord, quant, it->first);
 
-            order.quantity -= quant;
+            order.quantity -= quant;    
             ord.quantity -= quant;
+
             if (ord.quantity == 0) {
                 ord.status =  Status::FILLED;
                 OrderPointersStore.erase(ord.orderId);
-                it->second.pop_front();
+                q.pop_front();
             }else{
                 ord.status = Status::PARTIAL_FILLED;
             }
         }
         if (q.empty()) {
-            it = SELL.erase(it);
+            it = oppositeBook.erase(it);
         }
         else {
             break;
@@ -145,56 +149,20 @@ void ProcessBUY(Order &order) {
     }
 }
 
+void ProcessBUY(Order &order) {
+    MatchOrder(order, SELL, 
+        [](int buyPrice, int sellPrice){
+            return buyPrice >= sellPrice;
+        }
+    );
+}
+
 void ProcessSELL(Order &order) {
-    int originalQuantity = order.quantity;
-    auto it = BUY.begin();
-    while (order.quantity > 0 && it != BUY.end()) {
-        if (it->first < order.price) {
-            // break when sell price is greater than order buy price cause , terminate condition is (sell > buy)
-            // will help in optimization too not loop in map ,and directly come to conclusion
-            // and also help in breaking while LOOP
-            break;
+    MatchOrder(order, BUY, 
+        [](int buyPrice, int sellPrice){
+            return buyPrice <= sellPrice;
         }
-        auto &q = it->second;
-        while (order.quantity > 0 && !q.empty()) {
-            auto &ord = q.front();
-            int quant = std::min(ord.quantity, order.quantity);
-            // trade is heppenig so will record trade obejct here
-            RecordTrade(order, ord, quant, it->first);
-            order.quantity -= quant;
-            ord.quantity -= quant;
-            if (ord.quantity == 0) {
-                ord.status = Status::FILLED;
-                OrderPointersStore.erase(ord.orderId);
-                it->second.pop_front();
-            }else{
-                ord.status = Status::PARTIAL_FILLED;
-            }
-        }
-        if (q.empty()) {
-            it = BUY.erase(it);
-        }
-        else {
-            break;
-        }
-        // look into the queue and take the first elem adn match the trade with that
-        // Order temp = it->second.front();
-        // here ahvet o subtrat this from the quqnity til order complete
-        // or just do while(!(order.price < it->first && order.quantity <= 0)){}
-        // in mid return if quantity is done , then return the TRade struct
-    }
-    if (order.quantity == 0){
-        order.status = Status::FILLED;
-        std::cout << "order fullfilled " << std::endl;
-    }else if(order.quantity < originalQuantity){
-        // marking this as partial filled
-        order.status = Status::PARTIAL_FILLED;
-        std::cout << "partial filled remain saved to orderbook" << std::endl;
-        AddToOrderBook(order);
-    }else{
-        order.status = Status::OPEN;
-        AddToOrderBook(order);
-    }
+    );
 }
 
 void CancelOrder(int Orderid){
@@ -203,7 +171,7 @@ void CancelOrder(int Orderid){
         std::cout << "return" << std::endl;
         return;
     }
-    auto &it = p->second;
+    auto it = p->second;
     it.iterator->status = Status::CANCELLED;
     if(it.side == 'B'){
         std::cout << "from b" << std::endl;
@@ -239,6 +207,10 @@ void ModifyOrder(int orderId , int newprice=-1, int newquantity=-1 ,char newside
 
     if(!priceChanged  && !quantityIncreased && !sideChanged){
         if(newquantity != -1){
+            if(newquantity <=0){
+                std::cout << "invalid quantity" << std::endl;
+                return;
+            }
             it->second.iterator->quantity = newquantity;
         }
         return;
