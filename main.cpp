@@ -17,15 +17,31 @@ enum class Status{
     OPEN,
     FILLED,
     PARTIAL_FILLED,
+    PARTIAL_FILLED_Cancel,
     CANCELLED,
     REJECTED
+};
+
+enum class OrderType
+{
+    Limit,
+    Market
+};
+
+enum class OrderTimeinFrame
+{
+    GTC, // Good Till Cancel
+    FOK, // Fill or KILL
+    IOC  // Immediate or KIll
 };
 
 struct Order {
     int orderId;
     char side;
-    int price;
+    int64_t price;
     int quantity;
+    OrderType otype;
+    OrderTimeinFrame otf;
     Status status;
 };
 
@@ -33,57 +49,149 @@ struct Trade {
     int BuyId;
     int SellId;
     int quant;
-    int price;
+    int64_t price;
+};
+
+struct OrderEvent {
+    Status oldStatus;
+    Status newStatus;
+    int64_t price;
+    int originalquantity;
+    int execquantity;
+    int remquantity;
 };
 
 struct OrderRef{
-    int price;
+    int64_t price;
     char side;
     std::list<Order>::iterator iterator;
 };
 
-std::vector<Trade> trades;
-std::queue<Order> qe;
+struct NewOrder
+{
+    Order order;
+};
 
-std::map<int, std::list<Order>, std::greater<int>> BUY;
-std::map<int, std::list<Order>> SELL;
+struct CancelOrder
+{
+    int orderId;
+};
+
+struct ModifyOrder
+{
+    int orderId;
+    int64_t newprice = -1;
+    int newquantity = -1;
+    char newside = '\0';
+};
+
+enum class CommandType
+{
+    New,
+    Modify,
+    Cancel
+};
+
+struct Command
+{
+    CommandType type;
+
+    union
+    {
+        NewOrder neworder;
+        CancelOrder cancelOrder;
+        ModifyOrder modifyOrder;
+    };
+
+    static Command New(const Order& order)
+    {
+        Command c;
+        c.type = CommandType::New;
+        c.neworder = { order };
+        return c;
+    }
+
+    static Command Modify(int id, int64_t price = -1, int quanitity = -1, char side = '\0')
+    {
+        Command c;
+        c.type = CommandType::Modify;
+        c.modifyOrder = { id, price, quanitity, side };
+        return c;
+    }
+
+    static Command Cancel(int id)
+    {
+        Command c;
+        c.type = CommandType::Cancel;
+        c.cancelOrder = { id };
+        return c;
+    }
+
+    Command() {}
+    ~Command() {}
+};
+
+std::unordered_map<int, std::vector<OrderEvent>> orderHistory; // orderid, Orders vector
+
+std::vector<Trade> trades;
+std::queue<Command> qe;
+
+std::map<int64_t, std::list<Order>, std::greater<int64_t>> BUY;
+std::map<int64_t, std::list<Order>> SELL;
 
 // cancell order , for that have to track each orders pointer in a seprate record , and will directly remove that pointer from that side of map in o(1)
-//  as the second part also contain queue and queue does not have O(1) removal so we will find the iterator to it and then remove that instantly
+// as the second part also contain queue and queue does not have O(1) removal so we will find the iterator to it and then remove that instantly
 std::unordered_map<int, OrderRef> OrderPointersStore; // orderid, iterator
 
 void Producer() {
     int id = 1;
-    qe.push(Order{ id++,'B',105, 100,Status::NEW});
-    qe.push(Order{ id++,'S',103, 100,Status::NEW});
-    qe.push(Order{ id++,'B',105,100,Status::NEW});
-    qe.push(Order{ id++,'S',103, 40,Status::NEW});
-    qe.push(Order{ id++,'B',100,100,Status::NEW});
-    qe.push(Order{ id++,'S',101, 100,Status::NEW});
-    qe.push(Order{ id++,'B',105,100,Status::NEW});
-    qe.push(Order{ id++,'S',100, 100,Status::NEW});
-}   
+    qe.push(Command::New(Order{ id++, 'B', 105, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::New(Order{ id++, 'S', 103, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::New(Order{ id++, 'B', 105, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::New(Order{ id++, 'S', 103, 40, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::New(Order{ id++, 'B', 100, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::New(Order{ id++, 'S', 101, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::New(Order{ id++, 'B', 105, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::New(Order{ id++, 'S', 100, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+}
 
-void RecordTrade(Order &incoming, Order &recieving , int quantity , int price){
+void RecordTrade(Order& incoming, Order& recieving, int quantity, int64_t price){
     Trade t{
         incoming.side == 'B' ? incoming.orderId : recieving.orderId,
         incoming.side == 'S' ? incoming.orderId : recieving.orderId,
         quantity,
-        price
-    };
+        price };
     trades.push_back(t);
 }
 
-bool Validator(Order& order){
+void RecordOrderEvent(Order& order, Status newStatus, int execquantity=0, int origquantity=-1) {
+
+    if (origquantity == -1) {
+        origquantity = order.quantity + execquantity;
+    }
+    orderHistory[order.orderId].push_back(
+        {
+            order.status,
+            newStatus,
+            order.price,
+            origquantity,
+            execquantity,
+            order.quantity,
+        }
+    );
+    order.status = newStatus;
+}
+
+bool Validator(const Order& order){
     if(order.orderId <= 0) return false;
     if(order.quantity <= 0) return false;
-    if(order.price <=0) return false;
     if (order.side != 'B' && order.side != 'S') return false;
+    if (order.otype == OrderType::Limit && order.price <= 0) return false;
+    if (order.otype == OrderType::Market && order.otf == OrderTimeinFrame::GTC) return false;
     return true;
 }
 
-
-void AddToOrderBook(const Order &order){
+void AddToOrderBook(const Order& order){
     if(order.side == 'B'){
         BUY[order.price].push_back(order);
         auto it = std::prev(BUY[order.price].end());
@@ -95,72 +203,156 @@ void AddToOrderBook(const Order &order){
     }
 }
 
-template<typename OppositeBook, typename Compare>
-void MatchOrder(Order &order, OppositeBook &oppositeBook, Compare comp){
+template <typename OppositeBook, typename Compare>
+bool CanFullFillOrder(const Order& order, OppositeBook& oppositeBook, Compare comp)
+{
+    int remaining = order.quantity;
+    for (auto it = oppositeBook.begin(); it != oppositeBook.end(); it++)
+    {
+        if (order.otype == OrderType::Limit && !comp(order.price, it->first))
+        {
+            break;
+        }
+        for (auto& ord : it->second)
+        {
+            remaining -= ord.quantity;
+            if (remaining <= 0)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// here the Opposite BOok is deined by type whihc defined on calling the MAtchOrder fucntion
+// the compare here work as the Lambda Obejct type whcih deduce the comp with lambda() operator , whihc is what we define in the Calling when ProcessBUy and ProcessSEll of like
+/*
+class Lambda
+{
+public: bool Opertor() (int buy price , int sellPrice ){
+return ..........
+}
+// as this condition is differnt in both buy and sell so make it lambda so that can independtly declare and check that and perform correctly
+}
+*/
+template <typename OppositeBook, typename Compare>
+void MatchOrder(Order& order, OppositeBook& oppositeBook, Compare comp)
+{
+    if (order.otf == OrderTimeinFrame::FOK)
+    {
+        if (!CanFullFillOrder(order, oppositeBook, comp))
+        {
+            RecordOrderEvent(order, Status::CANCELLED);
+            order.quantity = 0;
+            return;
+        }
+    }
     int originalQuantity = order.quantity;
     auto it = oppositeBook.begin();
-    while (order.quantity > 0 && it != oppositeBook.end() && comp(order.price,it->first)) {
-            // break when sell price is greater than order buy price cause , terminate condition is (sell > buy)
-            // will help in optimization too not loop in map ,and directly come to conclusion
-            // and also help in breaking while LOOP
-
-        auto &q = it->second;
-        while (order.quantity > 0 && !q.empty()) {
-            auto &ord = q.front();
+    while (order.quantity > 0 && it != oppositeBook.end())
+    {
+        if (order.otype == OrderType::Limit && !comp(order.price, it->first))
+        {
+            break;
+        }
+        // rest market order type will skip above condition and jump to this and execute direclty wiht no price thing
+        auto& q = it->second;
+        while (order.quantity > 0 && !q.empty())
+        {
+            auto& ord = q.front();
             int quant = std::min(ord.quantity, order.quantity);
 
             // trade is heppenig so will record trade obejct here
-            RecordTrade(order, ord, quant, it->first);
+            int64_t tradePrice = ord.price;
+            RecordTrade(order, ord, quant, tradePrice);
 
-            order.quantity -= quant;    
+            order.quantity -= quant;
             ord.quantity -= quant;
-
+            int exec = quant;
             if (ord.quantity == 0) {
-                ord.status =  Status::FILLED;
+                RecordOrderEvent(ord, Status::FILLED,exec);
                 OrderPointersStore.erase(ord.orderId);
                 q.pop_front();
+                break;
             }else{
-                ord.status = Status::PARTIAL_FILLED;
+                RecordOrderEvent(ord, Status::PARTIAL_FILLED,quant);
             }
+        }
+        if (order.quantity == 0) {
+            break;
         }
         if (q.empty()) {
             it = oppositeBook.erase(it);
         }
         else {
-            break;
+            ++it;;
         }
-        // look into the queue and take the first elem adn match the trade with that
-        // Order temp = it->second.front();
-        // here ahvet o subtrat this from the quqnity til order complete
-        // or just do while(!(order.price < it->first && order.quantity <= 0)){}
-        // in mid return if quantity is done , then return the TRade struct
     }
 
     if (order.quantity == 0){
-        order.status = Status::FILLED;
+        RecordOrderEvent(order, Status::FILLED,originalQuantity);
         std::cout << "order fullfilled " << std::endl;
-    }else if(order.quantity < originalQuantity){
-        // marking this as partial filled
-        order.status = Status::PARTIAL_FILLED;
-        AddToOrderBook(order);
-    }else{
-        order.status = Status::OPEN;
-        AddToOrderBook(order);
+    }else if(order.quantity < originalQuantity)
+    {
+        if (order.otype == OrderType::Market)
+        {
+            RecordOrderEvent(order, Status::PARTIAL_FILLED_Cancel, originalQuantity - order.quantity , originalQuantity);
+            order.quantity = 0;
+        }
+        else if (order.otf == OrderTimeinFrame::GTC)
+        {
+            RecordOrderEvent(order, Status::PARTIAL_FILLED , originalQuantity - order.quantity, originalQuantity);
+            // add to otder book
+            AddToOrderBook(order);
+        }
+        else if (order.otf == OrderTimeinFrame::IOC)
+        {
+            // cancle order now
+            std::cout << "filled is : " << originalQuantity - order.quantity << ": remainging are cancelled : " << order.quantity << std::endl;
+            RecordOrderEvent(order, Status::PARTIAL_FILLED_Cancel , originalQuantity - order.quantity, originalQuantity);
+            order.quantity = 0; // reseting the quantity
+        }
+    }
+    else
+    {
+        if (order.otype == OrderType::Market)
+        {
+            RecordOrderEvent(order, Status::CANCELLED,0);
+            order.quantity = 0;
+        }
+        else if (order.otf == OrderTimeinFrame::GTC)
+        {
+            RecordOrderEvent(order, Status::OPEN);
+            // add to otder book
+            AddToOrderBook(order);
+        }
+        else if (order.otf == OrderTimeinFrame::IOC)
+        {
+            // cancle order now
+            RecordOrderEvent(order, Status::CANCELLED,0);
+            std::cout << "nothing matched so cancelling it" << std::endl;
+            order.quantity = 0; // reseting the quantity
+        }
     }
 }
 
-void ProcessBUY(Order &order) {
-    MatchOrder(order, SELL, 
-        [](int buyPrice, int sellPrice){
+void ProcessBUY(Order& order)
+{
+    MatchOrder(order, SELL,
+        [](int64_t buyPrice, int64_t sellPrice)
+        {
             return buyPrice >= sellPrice;
         }
     );
 }
 
-void ProcessSELL(Order &order) {
-    MatchOrder(order, BUY, 
-        [](int buyPrice, int sellPrice){
-            return buyPrice <= sellPrice;
+void ProcessSELL(Order& order)
+{
+    MatchOrder(order, BUY,
+        [](int64_t sellPrice, int64_t buyPrice)
+        {
+            return buyPrice >= sellPrice;
         }
     );
 }
@@ -172,7 +364,7 @@ void CancelOrder(int Orderid){
         return;
     }
     auto it = p->second;
-    it.iterator->status = Status::CANCELLED;
+    RecordOrderEvent(*(it.iterator), Status::CANCELLED,0);
     if(it.side == 'B'){
         std::cout << "from b" << std::endl;
         auto lst = BUY.find(it.price);
@@ -195,7 +387,8 @@ void CancelOrder(int Orderid){
     OrderPointersStore.erase(p);
 }
 
-void ModifyOrder(int orderId , int newprice=-1, int newquantity=-1 ,char newside = '\0'){
+void ModifyOrder(int orderId, int64_t newprice = -1, int newquantity = -1, char newside = '\0')
+{
     auto it = OrderPointersStore.find(orderId);
     if (it == OrderPointersStore.end()){
         return ;// so such order
@@ -207,7 +400,7 @@ void ModifyOrder(int orderId , int newprice=-1, int newquantity=-1 ,char newside
 
     if(!priceChanged  && !quantityIncreased && !sideChanged){
         if(newquantity != -1){
-            if(newquantity <=0){
+            if(newquantity <= 0){
                 std::cout << "invalid quantity" << std::endl;
                 return;
             }
@@ -224,94 +417,136 @@ void ModifyOrder(int orderId , int newprice=-1, int newquantity=-1 ,char newside
     if(!(newside == '\0')){
         oldOrder.side = newside;
     }
-    
+
     if(!Validator(oldOrder)){
         std::cout << " invalid mofications : rejected by validator" << std::endl;
         return;
     }
-    
+
     //Nee cancel order ad  repalce
     CancelOrder(orderId);
     oldOrder.status = Status::NEW;
-    qe.push(oldOrder);
+    qe.push(Command::New(oldOrder));
 }
- 
-void ProcessOrder(Order &order) {
-    if (order.side == 'B') {
-        // first have to see if the map is null or not
-        // if null then inet directly
-        if (SELL.empty()) {
-            order.status = Status::OPEN;
-            std::cout << "directly pushed to buy" << std::endl;
-            AddToOrderBook(order);
-        }
-        else {
-            ProcessBUY(order);
-        }
+
+void ProcessOrder(Order& order) {
+    if (order.side == 'B')
+    {
+        ProcessBUY(order);
     }
     else {
-        if (BUY.empty()) {
-            order.status = Status::OPEN;
-            std::cout << "directly pushed to sell" << std::endl;
-            AddToOrderBook(order);
-        }
-        else {
-            ProcessSELL(order);
-        }
+        ProcessSELL(order);
     }
 }
 
 void PrintTrades(){
-    for(int i =0;i<trades.size();i++){
-        std::cout << "Buyer id : " << trades[i].BuyId << " seller ID : " << trades[i].SellId << " price is: " << trades[i].price << " quantity is: " << trades[i].quant << std::endl;
+    for (const auto& trad : trades)
+    {
+        std::cout << "Buyer id : " << trad.BuyId << " seller ID : " << trad.SellId << " price is: " << trad.price << " quantity is: " << trad.quant << std::endl;
     }
 }
 
 void Consumer() {
     while (!qe.empty()) {
-        Order temp = qe.front();
+        auto temp = qe.front();
         qe.pop();
-        if(!Validator(temp)){
-            temp.status = Status::REJECTED;
-            std::cout << " validation of order id : " << temp.orderId << " : failed with status : Rejected " << std::endl;
-            continue;
-        }else{
-            ProcessOrder(temp);
+
+        switch (temp.type)
+        {
+        case CommandType::New:
+        {
+            Order order = temp.neworder.order;
+            if (!Validator(order))
+            {
+                std::cout << " validation of order id : " << order.orderId << " : failed with status : Rejected " << std::endl;
+                RecordOrderEvent(order, Status::REJECTED,0);
+                break;
+            }
+            ProcessOrder(order);
+            break;
         }
+        case CommandType::Cancel:
+        {
+            CancelOrder(temp.cancelOrder.orderId);
+            break;
+        }
+        case CommandType::Modify:
+        {
+            ModifyOrder(temp.modifyOrder.orderId, temp.modifyOrder.newprice, temp.modifyOrder.newquantity, temp.modifyOrder.newside);
+            break;
+        }
+
         // std::cout << "order id : " << temp.orderId << "side : " << temp.side << " price: " << temp.price << std::endl;
+        }
     }
 }
 
 void PrintOrderBook(){
     std::cout << "BUY >> ";
 
-    for(const auto &p : BUY){
+    for(const auto& p : BUY)
+    {
         int total =0;
-        for(const auto &ord : p.second){
+        for(const auto& ord : p.second)
+        {
             total +=ord.quantity;
         }
-        std::cout << "price : " << p.first << " quanitity "  << total << std::endl;
-    }  
-    
+        std::cout << "price : " << p.first << " quanitity " << total << std::endl;
+    }
+
     std::cout << "SELL >> ";
-    
-    for(const auto &p : SELL){
+
+    for(const auto& p : SELL)
+    {
         int total =0;
-        for(const auto &ord : p.second){
+        for(const auto& ord : p.second)
+        {
             total +=ord.quantity;
         }
-        std::cout << "price : " << p.first << " quanitity "  << total << std::endl;
+        std::cout << "price : " << p.first << " quanitity " << total << std::endl;
     }
     std::cout << std::endl;
 }
 
+std::string StatusToString(Status status)
+{
+    switch (status)
+    {
+    case Status::NEW:
+        return "NEW";
+    case Status::OPEN:
+        return "OPEN";
+    case Status::FILLED:
+        return "FILLED";
+    case Status::PARTIAL_FILLED:
+        return "PARTIAL_FILLED";
+    case Status::PARTIAL_FILLED_Cancel:
+        return "PARTIAL_FILLED_CANCEL";
+    case Status::CANCELLED:
+        return "CANCELLED";
+    case Status::REJECTED:
+        return "REJECTED";
+    default:
+        return "UNKNOWN";
+    }
+}
 
-int main() {
+void PrintOrderHistory() {
+    std::cout << "\tID\t" << "Price\t" << "Original\t" << "Remain Quantity\t" << " Exec Quantity\t\t"  << "Old Status\t" << "New Status\t" << std::endl;
+    for (auto it = orderHistory.begin(); it != orderHistory.end(); it++) {
+        int orderid = it->first;
+        for (const auto& second : it->second) {
+            std::cout << "\t" << orderid << "\t" << second.price << "\t" << second.originalquantity << "\t\t" << second.remquantity << "\t\t\t" << second.execquantity << "\t\t" << StatusToString(second.oldStatus) << "\t\t" << StatusToString(second.newStatus) << "\t" << std::endl;
+        }
+    }
+}
+
+int main()
+{
     Producer();
     Consumer();
     PrintTrades();
     PrintOrderBook();
-    CancelOrder(4);
-    PrintOrderBook();
+    PrintOrderHistory();
     return 0;
 }
