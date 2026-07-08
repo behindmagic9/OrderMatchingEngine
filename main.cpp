@@ -5,6 +5,7 @@
 #include<algorithm>
 #include<vector>
 #include<list>
+#include<unordered_set>
 // producer
 // consumer
 // while(true)
@@ -52,6 +53,8 @@ struct Trade {
     int64_t price;
 };
 
+std::unordered_set<int> orderIds;
+
 struct OrderEvent {
     Status oldStatus;
     Status newStatus;
@@ -70,6 +73,7 @@ struct OrderRef{
 struct NewOrder
 {
     Order order;
+    bool fromReplace = false;
 };
 
 struct CancelOrder
@@ -103,11 +107,11 @@ struct Command
         ModifyOrder modifyOrder;
     };
 
-    static Command New(const Order& order)
+    static Command New(const Order& order , bool replace = false)
     {
         Command c;
         c.type = CommandType::New;
-        c.neworder = { order };
+        c.neworder = { order,replace };
         return c;
     }
 
@@ -153,6 +157,7 @@ void Producer() {
     qe.push(Command::New(Order{ id++, 'S', 101, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
     qe.push(Command::New(Order{ id++, 'B', 105, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
     qe.push(Command::New(Order{ id++, 'S', 100, 100, OrderType::Limit, OrderTimeinFrame::GTC, Status::NEW }));
+    qe.push(Command::Modify(5, -1, -1, 'S'));
 }
 
 void RecordTrade(Order& incoming, Order& recieving, int quantity, int64_t price){
@@ -419,14 +424,14 @@ void ModifyOrder(int orderId, int64_t newprice = -1, int newquantity = -1, char 
     }
 
     if(!Validator(oldOrder)){
-        std::cout << " invalid mofications : rejected by validator" << std::endl;
+     std::cout << " invalid mofications : rejected by validator" << std::endl;
         return;
     }
 
     //Nee cancel order ad  repalce
     CancelOrder(orderId);
     oldOrder.status = Status::NEW;
-    qe.push(Command::New(oldOrder));
+    qe.push(Command::New(oldOrder,true));
 }
 
 void ProcessOrder(Order& order) {
@@ -446,6 +451,10 @@ void PrintTrades(){
     }
 }
 
+bool DuplicateOrder(int orderId) {
+    return orderIds.find(orderId) != orderIds.end();
+}
+
 void Consumer() {
     while (!qe.empty()) {
         auto temp = qe.front();
@@ -462,6 +471,11 @@ void Consumer() {
                 RecordOrderEvent(order, Status::REJECTED,0);
                 break;
             }
+            if (DuplicateOrder(order.orderId) && !temp.neworder.fromReplace) {
+                RecordOrderEvent(order, Status::REJECTED, 0);
+                break;
+            }
+            orderIds.insert(temp.neworder.order.orderId);
             ProcessOrder(order);
             break;
         }
