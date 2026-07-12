@@ -30,9 +30,5 @@ public:
     void RemovePointer(int id) {
         OrderPointersStore.erase(id);
     }
-
-    bool OrderPointerFound(int id) {
-        return OrderPointersStore.find(id) == OrderPointersStore.end();
-    }
 };
 
