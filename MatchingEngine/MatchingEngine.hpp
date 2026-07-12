@@ -11,10 +11,11 @@
 
 class MatchingEngine {
 private:
-    OrderBook orderBook;
-    std::unordered_map<int, std::vector<OrderEvent>> orderHistory; // orderid, Orders vector
+    std::unordered_map<std::string , OrderBook> orderBook; // sybol assiciated orderbook
+    std::unordered_map<int, std::vector<OrderEvent>> orderHistory; // orderid, Orders vector    
     std::unordered_set<int> orderIds;
     std::queue<Command> qe;
+    std::unordered_set<std::string> symbols_set; // its the set of number of symbols entered in system
 
 public:
 
@@ -34,13 +35,14 @@ public:
     void ProcessBUY(Order& order);
     void ProcessSELL(Order& order);
     bool DuplicateOrder(int orderId);
-    void CancelOrder(int Orderid);//just a function to delegate to orderbook cancel order thing
-    void ModifyOrder(int orderId, int64_t newprice = -1, int newquantity = -1, char newside = '\0'); // -1 mean no value thats why by default
+    void CancelOrder(int Orderid, std::string symbol);//just a function to delegate to orderbook cancel order thing
+    void ModifyOrder(int orderId, std::string symbol, int64_t newprice = -1, int newquantity = -1, char newside = '\0'); // -1 mean no value thats why by default
 
     //getters
-
-    OrderBook& GetOrderBook() {
-        return orderBook;
+    OrderBook& GetOrderBook(const std::string& symbol) {
+        return orderBook[symbol];
     }
+
+    void PrintAllOrderBooks();
 
 };

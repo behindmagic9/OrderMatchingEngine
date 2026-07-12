@@ -5,11 +5,11 @@ bool MatchingEngine::DuplicateOrder(int orderId) {
 }
 
 void MatchingEngine::PrintOrderHistory() {
-    std::cout << "\tID\t" << "Price\t" << "Original\t" << "Remain Quantity\t" << " Exec Quantity\t\t" << "Old Status\t" << "New Status\t" << std::endl;
+    std::cout << "\tID\t" << "Symbol\t" <<"Price\t" << "Original\t" << "Remain Quantity\t" << " Exec Quantity\t\t" << "Old Status\t" << "New Status\t" << std::endl;
     for (auto it = orderHistory.begin(); it != orderHistory.end(); it++) {
         int orderid = it->first;
         for (const auto& second : it->second) {
-            std::cout << "\t" << orderid << "\t" << second.price << "\t" << second.originalquantity << "\t\t" << second.remquantity << "\t\t\t" << second.execquantity << "\t\t" << StatusToString(second.oldStatus) << "\t\t" << StatusToString(second.newStatus) << "\t" << std::endl;
+            std::cout << "\t" << orderid << "\t" <<  second.symbol <<"\t"<< second.price << "\t" << second.originalquantity << "\t\t" << second.remquantity << "\t\t\t" << second.execquantity << "\t\t" << StatusToString(second.oldStatus) << "\t\t" << StatusToString(second.newStatus) << "\t" << std::endl;
         }
     }
 }
@@ -19,35 +19,27 @@ void MatchingEngine::Consumer() {
         auto temp = qe.front();
         qe.pop();
 
-        switch (temp.type)
-        {
-            case CommandType::New:
+        // get_if is used to safely inspect inside variant without thirowing exception and retriee values
+        if(auto* neworder = std::get_if<NewOrder>(&temp.data)){
+            //handle new order
+            if (!Validator(neworder->order))
             {
-                Order order = temp.neworder.order;
-                if (!Validator(order))
-                {
-                    std::cout << " validation of order id : " << order.orderId << " : failed with status : Rejected " << std::endl;
-                    RecordOrderEvent(order, Status::REJECTED, 0);
-                    break;
-                }
-                if (DuplicateOrder(order.orderId) && !temp.neworder.fromReplace) {
-                    RecordOrderEvent(order, Status::REJECTED, 0);
-                    break;
-                }
-                orderIds.insert(temp.neworder.order.orderId);
-                ProcessOrder(order);
+                std::cout << " validation of order id : " << neworder->order.orderId << " : failed with status : Rejected " << std::endl;
+                RecordOrderEvent(neworder->order, Status::REJECTED, 0);
                 break;
             }
-            case CommandType::Cancel:
-            {
-                CancelOrder(temp.cancelOrder.orderId);
+            if (DuplicateOrder(neworder->order.orderId) && !neworder->fromReplace) {
+                RecordOrderEvent(neworder->order, Status::REJECTED, 0);
                 break;
             }
-            case CommandType::Modify:
-            {
-                ModifyOrder(temp.modifyOrder.orderId, temp.modifyOrder.newprice, temp.modifyOrder.newquantity, temp.modifyOrder.newside);
-                break;
-            }
+            orderIds.insert(neworder->order.orderId);
+            symbols_set.insert(neworder->order.symbol);
+            ProcessOrder(neworder->order);
+        }
+        else if(auto* modifyOrder = std::get_if<Modify_Order>(&temp.data)){
+            ModifyOrder(modifyOrder->orderId, modifyOrder->symbol, modifyOrder->newprice, modifyOrder->newquantity, modifyOrder->newside);
+        }else if(auto* cancelOrder = std::get_if<Cancel_Order>(&temp.data)){
+            CancelOrder(cancelOrder->orderId, cancelOrder->symbol);
         }
     }
 }
@@ -62,11 +54,9 @@ void MatchingEngine::ProcessOrder(Order& order) {
     }
 }
 
-
-
 void MatchingEngine::ProcessBUY(Order& order)
 {
-    auto& SELL = this->orderBook.GetSellBook();
+    auto& SELL = GetOrderBook(order.symbol).GetSellBook();
     MatchOrder(order, SELL,
         [](int64_t buyPrice, int64_t sellPrice)
         {
@@ -77,7 +67,7 @@ void MatchingEngine::ProcessBUY(Order& order)
 
 void MatchingEngine::ProcessSELL(Order& order)
 {
-    auto& BUY = this->orderBook.GetBuyBook();
+    auto& BUY = GetOrderBook(order.symbol).GetBuyBook();
     MatchOrder(order, BUY,
         [](int64_t sellPrice, int64_t buyPrice)
         {
@@ -155,7 +145,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
             int exec = quant;
             if (ord.quantity == 0) {
                 RecordOrderEvent(ord, Status::FILLED, exec);
-                orderBook.RemovePointer(ord.orderId);
+                GetOrderBook(ord.symbol).RemovePointer(ord.orderId);
                 q.pop_front();
                 break;
             }
@@ -189,7 +179,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
         {
             RecordOrderEvent(order, Status::PARTIAL_FILLED, originalQuantity - order.quantity, originalQuantity);
             // add to otder book
-            orderBook.AddToOrderBook(order);
+            GetOrderBook(order.symbol).AddToOrderBook(order);
         }
         else if (order.otf == OrderTimeinFrame::IOC)
         {
@@ -210,7 +200,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
         {
             RecordOrderEvent(order, Status::OPEN);
             // add to otder book
-            this->orderBook.AddToOrderBook(order);
+            GetOrderBook(order.symbol).AddToOrderBook(order);
         }
         else if (order.otf == OrderTimeinFrame::IOC)
         {
@@ -232,6 +222,7 @@ void MatchingEngine::RecordOrderEvent(Order& order, Status newStatus, int execqu
             order.status,
             newStatus,
             order.price,
+            order.symbol,
             origquantity,
             execquantity,
             order.quantity,
@@ -244,12 +235,15 @@ void MatchingEngine::Submit(const Command& cmd) {
     this->qe.push(cmd);
 }
 
-void MatchingEngine::ModifyOrder(int orderId, int64_t newprice, int newquantity, char newside)
+void MatchingEngine::ModifyOrder(int orderId,std::string symbol, int64_t newprice, int newquantity, char newside)
 {
-    auto it = orderBook.OrderPointersStore.find(orderId);
-    if (it == orderBook.OrderPointersStore.end()) {
+    // see if order already exist in there or not
+    auto it = GetOrderBook(symbol).OrderPointersStore.find(orderId);
+    if (it == GetOrderBook(symbol).OrderPointersStore.end()) {
         return;// so such order
     }
+
+    // if exist ,then using the pointer from orderpointerstore get that order
     Order oldOrder = *(it->second.iterator);
     bool priceChanged = (newprice != -1 && newprice != oldOrder.price);
     bool quantityIncreased = (newquantity != -1 && newquantity > oldOrder.quantity);
@@ -281,16 +275,25 @@ void MatchingEngine::ModifyOrder(int orderId, int64_t newprice, int newquantity,
     }
 
     //Nee cancel order ad  repalce
-    CancelOrder(orderId);
+    CancelOrder(orderId, oldOrder.symbol);
     oldOrder.status = Status::NEW;
     Submit(Command::New(oldOrder, true));
 }
 
-void MatchingEngine::CancelOrder(int orderId) {
-    auto cancelled = orderBook.CancelOrder(orderId);
+void MatchingEngine::CancelOrder(int orderId, std::string symbol) {
+    auto cancelled = GetOrderBook(symbol).CancelOrder(orderId);
     if (!cancelled.has_value()) {
         std::cout << "could not foudn respective Order id : " << orderId << std::endl;
         return;
     }
     RecordOrderEvent(*(cancelled), Status::CANCELLED, 0);
+}
+
+void MatchingEngine::PrintAllOrderBooks(){
+    for(auto symbol : symbols_set){
+        std::cout << "\n\n==== Start ====" << std::endl;
+        std::cout << "Symbol : " << symbol << std::endl;
+        GetOrderBook(symbol).PrintOrderBook();
+        std::cout << "====== End ========\n" << std::endl;
+    }
 }

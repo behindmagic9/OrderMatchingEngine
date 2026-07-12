@@ -15,7 +15,7 @@ void OrderBook::AddToOrderBook(const Order& order) {
 
 
 void OrderBook::PrintOrderBook() {
-    std::cout << "BUY >> ";
+    std::cout << "BUY  >> ";
 
     for (const auto& p : BUY)
     {

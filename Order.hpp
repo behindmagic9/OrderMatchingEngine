@@ -32,6 +32,7 @@ struct Order {
     char side;
     int64_t price;
     int quantity;
+    std::string symbol;
     OrderType otype;
     OrderTimeinFrame otf;
     Status status;
@@ -49,6 +50,7 @@ struct OrderEvent {
     Status oldStatus;
     Status newStatus;
     int64_t price;
+    std::string symbol;
     int originalquantity;
     int execquantity;
     int remquantity;
