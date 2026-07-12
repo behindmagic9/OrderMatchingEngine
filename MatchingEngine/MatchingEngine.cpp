@@ -15,9 +15,20 @@ void MatchingEngine::PrintOrderHistory() {
 }
 
 void MatchingEngine::Consumer() {
-    while (!qe.empty()) {
-        auto temp = qe.front();
-        qe.pop();
+    while (true) {
+        Command temp;
+        {
+            std::unique_lock<std::mutex> lock(mtx);
+
+            cv.wait(lock, [&]{
+                return closed || !qe.empty();
+            });
+            if(closed  && qe.empty()){
+                break;
+            }
+            temp = std::move(qe.front());
+            qe.pop();
+        }
 
         // get_if is used to safely inspect inside variant without thirowing exception and retriee values
         if(auto* neworder = std::get_if<NewOrder>(&temp.data)){
@@ -26,11 +37,11 @@ void MatchingEngine::Consumer() {
             {
                 std::cout << " validation of order id : " << neworder->order.orderId << " : failed with status : Rejected " << std::endl;
                 RecordOrderEvent(neworder->order, Status::REJECTED, 0);
-                break;
+                continue;
             }
             if (DuplicateOrder(neworder->order.orderId) && !neworder->fromReplace) {
                 RecordOrderEvent(neworder->order, Status::REJECTED, 0);
-                break;
+                continue;
             }
             orderIds.insert(neworder->order.orderId);
             symbols_set.insert(neworder->order.symbol);
@@ -160,7 +171,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
             it = oppositeBook.erase(it);
         }
         else {
-            ++it;;
+            ++it;
         }
     }
 
@@ -232,7 +243,12 @@ void MatchingEngine::RecordOrderEvent(Order& order, Status newStatus, int execqu
 }
 
 void MatchingEngine::Submit(const Command& cmd) {
-    this->qe.push(cmd);
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        if(closed) return;
+        qe.push(std::move(cmd));
+    }
+    cv.notify_one();
 }
 
 void MatchingEngine::ModifyOrder(int orderId,std::string symbol, int64_t newprice, int newquantity, char newside)
@@ -296,4 +312,12 @@ void MatchingEngine::PrintAllOrderBooks(){
         GetOrderBook(symbol).PrintOrderBook();
         std::cout << "====== End ========\n" << std::endl;
     }
+}
+
+void MatchingEngine::CloseQueue(){
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        closed = true;
+    }
+    cv.notify_all();
 }
