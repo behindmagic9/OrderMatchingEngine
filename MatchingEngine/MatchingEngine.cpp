@@ -16,22 +16,15 @@ void MatchingEngine::PrintOrderHistory() {
 
 void MatchingEngine::Consumer() {
     while (true) {
-        Command temp;
-        {
-            std::unique_lock<std::mutex> lock(mtx);
-
-            cv.wait(lock, [&]{
-                return closed || !qe.empty();
-            });
-            if(closed  && qe.empty()){
-                break;
-            }
-            temp = std::move(qe.front());
-            qe.pop();
+        auto temp = qe.pop();
+        
+        if(!temp){
+            break;
         }
 
+        // now changing everyone from . to -> cause the sd::optional in pop return the pointer which need this ->
         // get_if is used to safely inspect inside variant without thirowing exception and retriee values
-        if(auto* neworder = std::get_if<NewOrder>(&temp.data)){
+        if(auto* neworder = std::get_if<NewOrder>(&temp->data)){
             //handle new order
             if (!Validator(neworder->order))
             {
@@ -47,9 +40,9 @@ void MatchingEngine::Consumer() {
             symbols_set.insert(neworder->order.symbol);
             ProcessOrder(neworder->order);
         }
-        else if(auto* modifyOrder = std::get_if<Modify_Order>(&temp.data)){
+        else if(auto* modifyOrder = std::get_if<Modify_Order>(&temp->data)){
             ModifyOrder(modifyOrder->orderId, modifyOrder->symbol, modifyOrder->newprice, modifyOrder->newquantity, modifyOrder->newside);
-        }else if(auto* cancelOrder = std::get_if<Cancel_Order>(&temp.data)){
+        }else if(auto* cancelOrder = std::get_if<Cancel_Order>(&temp->data)){
             CancelOrder(cancelOrder->orderId, cancelOrder->symbol);
         }
     }
@@ -242,13 +235,8 @@ void MatchingEngine::RecordOrderEvent(Order& order, Status newStatus, int execqu
     order.status = newStatus;
 }
 
-void MatchingEngine::Submit(const Command& cmd) {
-    {
-        std::lock_guard<std::mutex> lock(mtx);
-        if(closed) return;
-        qe.push(std::move(cmd));
-    }
-    cv.notify_one();
+void MatchingEngine::Submit(Command cmd) {
+    qe.push(std::move(cmd));
 }
 
 void MatchingEngine::ModifyOrder(int orderId,std::string symbol, int64_t newprice, int newquantity, char newside)
@@ -315,9 +303,5 @@ void MatchingEngine::PrintAllOrderBooks(){
 }
 
 void MatchingEngine::CloseQueue(){
-    {
-        std::lock_guard<std::mutex> lock(mtx);
-        closed = true;
-    }
-    cv.notify_all();
+    qe.close();
 }

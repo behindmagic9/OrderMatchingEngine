@@ -9,6 +9,7 @@
 #include<queue>
 #include<condition_variable>
 #include<iostream>
+#include "../ThreadSafeQueue/TQueue.cpp"
 #include "../OrderBook/OrderBook.hpp"
 
 class MatchingEngine {
@@ -16,14 +17,14 @@ private:
     std::unordered_map<std::string , OrderBook> orderBook; // sybol assiciated orderbook
     std::unordered_map<int, std::vector<OrderEvent>> orderHistory; // orderid, Orders vector    
     std::unordered_set<int> orderIds;
-    std::queue<Command> qe;
+    TQueue<Command> qe;
     std::mutex mtx;
     bool closed = false;
     std::condition_variable cv;
     std::unordered_set<std::string> symbols_set; // its the set of number of symbols entered in system
 public:
 
-    void Submit(const Command&);
+    void Submit(Command);
 
     template <typename OppositeBook, typename Compare>
     bool CanFullFillOrder(const Order& order, OppositeBook& oppositeBook, Compare comp);
