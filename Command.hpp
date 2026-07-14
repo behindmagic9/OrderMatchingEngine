@@ -34,11 +34,11 @@ using CommandData = std::variant< NewOrder ,Cancel_Order ,Modify_Order >;
 
 
 /*
-The command payloads now contain std::string (and Order), which are non-trivial types. 
+The command payloads now contain std::string (and Order), which are non-trivial types.
 Non-trivial types have constructors, destructors, and potentially custom copy/move operations,
-so a plain union cannot manage their lifetime automatically. 
-Using a union would require manual construction/destruction of the active member (placement new, explicit destructor calls, etc.). 
-So Replaced the union with std::variant, which safely manages the active object's lifetime internally, 
+so a plain union cannot manage their lifetime automatically.
+Using a union would require manual construction/destruction of the active member (placement new, explicit destructor calls, etc.).
+So Replaced the union with std::variant, which safely manages the active object's lifetime internally,
 and used std::get_if for type-safe access in the consumer.
 */
 
@@ -68,5 +68,18 @@ struct Command
     static Command Cancel(int id, std::string symbol)
     {
         return Command{ Cancel_Order{id,std::move(symbol) } };
+    }
+
+    const std::string& Symbol() const {
+        if (auto* n = std::get_if<NewOrder>(&data)) {
+            return n->order.symbol;
+        }
+        else if (auto* n = std::get_if<Cancel_Order>(&data)) {
+            return n->symbol;
+        }
+        else if (auto* n = std::get_if<Modify_Order>(&data) ){
+            return n->symbol;
+        }
+        throw std::logic_error("invalid command");
     }
 };

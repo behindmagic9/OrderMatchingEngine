@@ -9,7 +9,7 @@
 #include<queue>
 #include<condition_variable>
 #include<iostream>
-#include "../ThreadSafeQueue/TQueue.cpp"
+#include "../ThreadSafeQueue/TQueue.hpp"
 #include "../OrderBook/OrderBook.hpp"
 
 class MatchingEngine {
@@ -22,9 +22,14 @@ private:
     bool closed = false;
     std::condition_variable cv;
     std::unordered_set<std::string> symbols_set; // its the set of number of symbols entered in system
+    std::vector<Trade> trades;
 public:
 
-    void Submit(Command);
+    void Submit(Command&&);
+
+    void PrintTrades();
+
+    void RecordTrade(Order& incoming, Order& recieving, int quantity, int64_t price);
 
     template <typename OppositeBook, typename Compare>
     bool CanFullFillOrder(const Order& order, OppositeBook& oppositeBook, Compare comp);

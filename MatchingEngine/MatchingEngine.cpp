@@ -5,11 +5,11 @@ bool MatchingEngine::DuplicateOrder(int orderId) {
 }
 
 void MatchingEngine::PrintOrderHistory() {
-    std::cout << "\tID\t" << "Symbol\t" <<"Price\t" << "Original\t" << "Remain Quantity\t" << " Exec Quantity\t\t" << "Old Status\t" << "New Status\t" << std::endl;
+    std::cout << "\tID\t" << "Symbol\t" << "Price\t" << "Original\t" << "Remain Quantity\t" << " Exec Quantity\t\t" << "Old Status\t" << "New Status\t" << std::endl;
     for (auto it = orderHistory.begin(); it != orderHistory.end(); it++) {
         int orderid = it->first;
         for (const auto& second : it->second) {
-            std::cout << "\t" << orderid << "\t" <<  second.symbol <<"\t"<< second.price << "\t" << second.originalquantity << "\t\t" << second.remquantity << "\t\t\t" << second.execquantity << "\t\t" << StatusToString(second.oldStatus) << "\t\t" << StatusToString(second.newStatus) << "\t" << std::endl;
+            std::cout << "\t" << orderid << "\t" << second.symbol << "\t" << second.price << "\t" << second.originalquantity << "\t\t" << second.remquantity << "\t\t\t" << second.execquantity << "\t\t" << StatusToString(second.oldStatus) << "\t\t" << StatusToString(second.newStatus) << "\t" << std::endl;
         }
     }
 }
@@ -17,7 +17,7 @@ void MatchingEngine::PrintOrderHistory() {
 void MatchingEngine::Consumer() {
     while (true) {
         auto temp = qe.pop();
-        
+
         if(!temp){
             break;
         }
@@ -235,7 +235,7 @@ void MatchingEngine::RecordOrderEvent(Order& order, Status newStatus, int execqu
     order.status = newStatus;
 }
 
-void MatchingEngine::Submit(Command cmd) {
+void MatchingEngine::Submit(Command&& cmd) {
     qe.push(std::move(cmd));
 }
 
@@ -304,4 +304,14 @@ void MatchingEngine::PrintAllOrderBooks(){
 
 void MatchingEngine::CloseQueue(){
     qe.close();
+}
+
+void MatchingEngine::RecordTrade(Order& incoming, Order& recieving, int quantity, int64_t price) {
+    Trade t{
+        incoming.side == 'B' ? incoming.orderId : recieving.orderId,
+        incoming.side == 'S' ? incoming.orderId : recieving.orderId,
+        quantity,
+        price };
+
+    trades.push_back(t);
 }

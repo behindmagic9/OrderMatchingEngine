@@ -93,29 +93,3 @@ inline std::string StatusToString(Status status)
         return "UNKNOWN";
     }
 }
-
-/*
-Order.hpp is included in several .cpp files. Since it contains the definition std::vector<Trade> trades;,
-each .cpp creates its own global vector named trades. The compiler compiles each file independently, so it does not complain. 
-Later the linker combines the object files and finds multiple global definitions with the same name, which violates the One Definition Rule and causes LNK2005.
-#pragma once only prevents duplicate inclusion inside one .cpp; it does not prevent the header from being included by different .cpp files. inline makes identical header definitions legal and
-merges them into one shared variable in C++17.
-*/
-inline std::vector<Trade> trades;
-
-inline void PrintTrades() {
-    for (const auto& trad : trades)
-    {
-        std::cout << "Buyer id : " << trad.BuyId << " seller ID : " << trad.SellId << " price is: " << trad.price << " quantity is: " << trad.quant << std::endl;
-    }
-}
-
-inline void RecordTrade(Order& incoming, Order& recieving, int quantity, int64_t price) {
-    Trade t{
-        incoming.side == 'B' ? incoming.orderId : recieving.orderId,
-        incoming.side == 'S' ? incoming.orderId : recieving.orderId,
-        quantity,
-        price };
-
-    trades.push_back(t);
-}
