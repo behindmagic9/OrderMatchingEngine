@@ -6,7 +6,7 @@
 #include "../Network/Wire/WireCancel.hpp"
 #include "../Network/Wire/WireModify.hpp"
 
-enum class PacketTpe : uint32_t{
+enum class PacketTpe : uint8_t{
     NewOrder = 1,
     CancelOrder = 2,
     ModifyOrder = 3,

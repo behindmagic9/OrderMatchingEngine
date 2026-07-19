@@ -1,6 +1,6 @@
 #include "../SymbolRegistry/SymbolRegistry.hpp"
 
-std::optional<uint64_t> SymbolRegistry::GetSymbolId(std::string_view symbol) const{
+std::optional<uint8_t> SymbolRegistry::GetSymbolId(const std::string_view& symbol) const{
     auto it = mappingSymbol.find(std::string(symbol));
     if(it == mappingSymbol.end()){
         return std::nullopt;
@@ -8,7 +8,7 @@ std::optional<uint64_t> SymbolRegistry::GetSymbolId(std::string_view symbol) con
     return it->second;
 }
 
-int SymbolRegistry::RegisterSymbol(std::string symbol){
+uint8_t SymbolRegistry::RegisterSymbol(const std::string& symbol){
     auto it = mappingSymbol.find(symbol);
     if(it != mappingSymbol.end()){
         return it->second;
@@ -24,6 +24,6 @@ size_t SymbolRegistry::Size() const{
     return mappingSymbol.size();
 }
 
-std::optional<std::string_view> SymbolRegistry::GetSymbolName(int id)const {
+std::optional<std::string_view> SymbolRegistry::GetSymbolName(const uint8_t& id)const {
     return idtoSymbol[id];
 }

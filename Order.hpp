@@ -31,9 +31,9 @@ enum class OrderTimeinFrame : uint8_t
 struct Order {
     uint64_t orderId;
     char side;
-    uint64_t price;
-    uint64_t quantity;
-    uint64_t symbol;
+    uint32_t price;
+    uint32_t quantity;
+    uint8_t symbol;
     OrderType otype;
     OrderTimeinFrame otf;
     Status status;
@@ -42,23 +42,23 @@ struct Order {
 struct Trade {
     uint64_t BuyId;
     uint64_t SellId;
-    uint64_t quant;
-    uint64_t price;
+    uint32_t quant;
+    uint32_t price;
 };
 
 
 struct OrderEvent {
     Status oldStatus;
     Status newStatus;
-    uint64_t price;
-    uint64_t symbol;
-    uint64_t originalquantity;
-    uint64_t execquantity;
-    uint64_t remquantity;
+    uint32_t price;
+    uint8_t symbol;
+    uint32_t originalquantity;
+    uint32_t execquantity;
+    uint32_t remquantity;
 };
 
 struct OrderRef {
-    uint64_t price;
+    uint32_t price;
     char side;
     std::list<Order>::iterator iterator;
 };

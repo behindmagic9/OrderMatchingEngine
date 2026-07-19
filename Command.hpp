@@ -11,15 +11,15 @@ struct NewOrder
 struct Cancel_Order
 {
     uint64_t orderId;
-    uint64_t symbol;
+    uint8_t symbol;
 };
 
 struct Modify_Order
 {
     uint64_t orderId;
-    uint64_t newprice = -1;
-    uint64_t symbol;
-    uint64_t newquantity = -1;
+    uint32_t newprice = -1;
+    uint8_t symbol;
+    uint32_t newquantity = -1;
     char newside = '\0';
 };
 
@@ -60,12 +60,12 @@ struct Command
         return Command{ NewOrder{order, replace } };
     }
 
-    static Command Modify(uint64_t id,uint64_t symbol, uint64_t price = -1, uint64_t quanitity = -1, char side = '\0')
+    static Command Modify(uint64_t id,uint8_t symbol, uint32_t price = -1, uint32_t quanitity = -1, char side = '\0')
     {
         return Command{ Modify_Order{ id ,price,std::move(symbol), quanitity, side } };
     }
 
-    static Command Cancel(uint64_t id, uint64_t symbol)
+    static Command Cancel(uint64_t id, uint8_t symbol)
     {
         return Command{ Cancel_Order{id,std::move(symbol) } };
     }

@@ -9,15 +9,15 @@
 class SymbolRegistry{
     public:
         SymbolRegistry() {}
-        std::optional<uint64_t> GetSymbolId(std::string_view symbol)const;
-        std::optional<std::string_view> GetSymbolName(int id) const;
+        std::optional<uint8_t> GetSymbolId(const std::string_view& symbol)const;
+        std::optional<std::string_view> GetSymbolName(const uint8_t& id) const;
         size_t Size() const;
         
         private :
-        std::unordered_map<std::string, uint64_t> mappingSymbol;
+        std::unordered_map<std::string, uint8_t> mappingSymbol;
         std::atomic<int> nextId {100};
         std::vector<std::string> idtoSymbol;
-        int RegisterSymbol(std::string symbol);
+        uint8_t RegisterSymbol(const std::string& symbol);
         friend class TradingServer;
 };
 

@@ -7,7 +7,7 @@
 struct WireNewOrder{
     uint64_t orderId;
     char symbol[56];
-    uint64_t price;
+    uint32_t price;
     uint32_t quantity;
     char side;
     uint8_t orderType;

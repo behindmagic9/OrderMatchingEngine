@@ -35,5 +35,7 @@ int main(){
 
 /*
 g++ -g -std=c++17 -pthread Server/main.cpp MatchingEngine/MatchingEngine.cpp OrderBook/OrderBook.cpp Dispactcher/Dispatcher.cpp Network/TCPSever.cpp Helper/SymbolRegistry/SymbolRegistry.cpp -I. -o server
+g++ -O2 -g -pg -std=c++17 -pthread Server/main.cpp MatchingEngine/MatchingEngine.cpp OrderBook/OrderBook.cpp Dispactcher/Dispatcher.cpp Network/TCPSever.cpp Helper/SymbolRegistry/SymbolRegistry.cpp -I. -o server
+
 
 */

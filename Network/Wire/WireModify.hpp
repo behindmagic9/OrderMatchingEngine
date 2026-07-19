@@ -7,7 +7,7 @@
 struct WireModify {
     uint64_t orderId;
     char symbol[56];
-    uint64_t newPrice;
+    uint32_t newPrice;
     uint32_t newQuantity;
     char newSide;
 };

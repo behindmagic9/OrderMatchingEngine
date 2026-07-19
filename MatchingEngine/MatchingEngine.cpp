@@ -1,6 +1,6 @@
 #include "../MatchingEngine/MatchingEngine.hpp"
 
-bool MatchingEngine::DuplicateOrder(int orderId) {
+bool MatchingEngine::DuplicateOrder(uint64_t orderId) {
     return orderIds.find(orderId) != orderIds.end();
 }
 
@@ -238,7 +238,7 @@ void MatchingEngine::Submit(Command&& cmd) {
     qe.push(std::move(cmd));
 }
 
-void MatchingEngine::ModifyOrder(uint64_t orderId,uint64_t symbol, uint64_t newprice, uint64_t newquantity, char newside)
+void MatchingEngine::ModifyOrder(uint64_t orderId,uint8_t symbol, uint32_t newprice, uint32_t newquantity, char newside)
 {
     // see if order already exist in there or not
     auto it = GetOrderBook(symbol).OrderPointersStore.find(orderId);
@@ -281,7 +281,7 @@ void MatchingEngine::ModifyOrder(uint64_t orderId,uint64_t symbol, uint64_t newp
     Submit(Command::New(oldOrder, true));
 }
 
-void MatchingEngine::CancelOrder(uint64_t orderId, uint64_t symbol) {
+void MatchingEngine::CancelOrder(uint64_t orderId, uint8_t symbol) {
     auto cancelled = GetOrderBook(symbol).CancelOrder(orderId);
     if (!cancelled.has_value()) {
         return;

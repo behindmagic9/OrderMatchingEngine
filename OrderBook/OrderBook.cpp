@@ -41,7 +41,7 @@ void OrderBook::PrintOrderBook() {
     std::cout << std::endl;
 }
 
-std::optional<Order> OrderBook::CancelOrder(int Orderid) {
+std::optional<Order> OrderBook::CancelOrder(uint64_t Orderid) {
     auto p = OrderPointersStore.find(Orderid);
     if (p == OrderPointersStore.end()) {
         return std::nullopt;
