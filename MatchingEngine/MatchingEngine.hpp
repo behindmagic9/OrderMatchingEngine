@@ -9,7 +9,7 @@
 #include<queue>
 #include<condition_variable>
 #include<iostream>
-#include "../ThreadSafeQueue/TQueue.hpp"
+#include "../CircularQueue/circularQueue.hpp"
 #include "../OrderBook/OrderBook.hpp"
 
 class MatchingEngine {
@@ -17,7 +17,7 @@ private:
     std::unordered_map<uint8_t , OrderBook> orderBook; // sybol assiciated orderbook
     //std::unordered_map<uint64_t, std::vector<OrderEvent>> orderHistory; // orderid, Orders vector    
     std::unordered_set<uint64_t> orderIds;
-    TQueue<Command> qe;
+    CircularQueue<Command, 8192> qe;
     std::mutex mtx;
     bool closed = false;
     std::condition_variable cv;

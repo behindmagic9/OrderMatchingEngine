@@ -1,17 +1,18 @@
 #pragma once
 
-#include "../ThreadSafeQueue/TQueue.hpp"
+#include "../CircularQueue/circularQueue.hpp"
 #include "../Command.hpp"
 #include <unordered_map>
 #include "../MatchingEngine/MatchingEngine.hpp"
 #include <atomic>
+
 #include<thread>
 
 const int SHARD_COUNT = 6;
 
 class Dispatcher {
 	// this will the be the one to which initial commands are to be published or to be stored 
-	TQueue<Command> GlobalQueue;
+	CircularQueue<Command,8192> GlobalQueue;
 
 	// this will keep record of the symbol mapped to the respective engine instance
 	MatchingEngine engineArray[SHARD_COUNT];

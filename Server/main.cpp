@@ -22,7 +22,7 @@ int main(){
 
     server.Start();
     
-    std::cout << "Press Enter to stop.. \n";
+    //std::cout << "Press Enter to stop.. \n";
     std::cin.get();
 
     _dispatcher.Close();

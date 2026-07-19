@@ -28,26 +28,16 @@ class TraderClient
 {
 public:
 
-    TraderClient(
-        int id,
-        const std::string& ip,
-        uint16_t port,
-        uint64_t ordersToSend
-    )
-        :
-        client(ip,port),
-        traderId(id),
-        totalOrders(ordersToSend),
-        rng(std::random_device{}())
+    TraderClient(int id,const std::string& ip,uint16_t port,uint64_t ordersToSend)
+        : client(ip,port),traderId(id),totalOrders(ordersToSend),rng(std::random_device{}())
     {
-
     }
 
     void Run()
     {
         if(!client.Connect())
         {
-            std::cout<<"Client "<<traderId<<" failed\n";
+            //std::cout<<"Client "<<traderId<<" failed\n";
             return;
         }
 
@@ -55,8 +45,7 @@ public:
         {
             int action=random(0,99);
 
-            if(activeOrders.empty())
-                action=0;
+            if(activeOrders.empty()) action=0;
 
             if(action<60)
             {
@@ -71,19 +60,10 @@ public:
                 SendCancel();
             }
 
-            std::this_thread::sleep_for(
-                std::chrono::microseconds(
-                    random(20,300)
-                )
-            );
+            std::this_thread::sleep_for(std::chrono::microseconds(random(20,300)));
         }
 
         client.Disconnect();
-
-        std::cout
-            <<"Trader "
-            <<traderId
-            <<" Finished\n";
     }
 
 private:
@@ -134,11 +114,9 @@ private:
     {
         int x=random(0,2);
 
-        if(x==0)
-            return OrderTimeinFrame::GTC;
+        if(x==0) return OrderTimeinFrame::GTC;
 
-        if(x==1)
-            return OrderTimeinFrame::IOC;
+        if(x==1) return OrderTimeinFrame::IOC;
 
         return OrderTimeinFrame::FOK;
     }
@@ -162,13 +140,7 @@ private:
     {
         auto it=activeOrders.begin();
 
-        std::advance(
-            it,
-            random(
-                0,
-                activeOrders.size()-1
-            )
-        );
+        std::advance(it,random(0,activeOrders.size()-1));
 
         return it;
     }
@@ -185,11 +157,7 @@ private:
 
         std::memset(body.symbol,0,sizeof(body.symbol));
 
-        std::memcpy(
-            body.symbol,
-            sym.c_str(),
-            sym.size()
-        );
+        std::memcpy(body.symbol,sym.c_str(),sym.size());
 
         body.price=RandomPrice();
 
@@ -197,15 +165,9 @@ private:
 
         body.side=RandomSide();
 
-        body.orderType=
-            static_cast<uint8_t>(
-                RandomType()
-            );
+        body.orderType= static_cast<uint8_t>(RandomType());
 
-        body.tif=
-            static_cast<uint8_t>(
-                RandomTIF()
-            );
+        body.tif= static_cast<uint8_t>(RandomTIF());
 
         auto packet=
             Serializer::Serialize(
@@ -223,27 +185,11 @@ private:
             body.quantity,
             body.side
         };
-
-        std::cout
-            <<"["
-            <<traderId
-            <<"] NEW "
-            <<id
-            <<" "
-            <<sym
-            <<" "
-            <<body.side
-            <<" "
-            <<body.price
-            <<" "
-            <<body.quantity
-            <<std::endl;
     }
 
     void SendModify()
     {
-        if(activeOrders.empty())
-            return;
+        if(activeOrders.empty())return;
 
         auto it = RandomExisting();
 
@@ -253,11 +199,7 @@ private:
 
         std::memset(body.symbol,0,sizeof(body.symbol));
 
-        std::memcpy(
-            body.symbol,
-            it->second.symbol.c_str(),
-            it->second.symbol.size()
-        );
+        std::memcpy(body.symbol,it->second.symbol.c_str(),it->second.symbol.size());
 
         body.newPrice = RandomPrice();
 
@@ -265,11 +207,7 @@ private:
 
         body.newSide = RandomSide();
 
-        auto packet =
-            Serializer::Serialize(
-                PacketTpe::ModifyOrder,
-                body
-            );
+        auto packet = Serializer::Serialize(PacketTpe::ModifyOrder,body);
 
         if(client.Send(packet))
         {
@@ -277,27 +215,11 @@ private:
             it->second.qty   = body.newQuantity;
             it->second.side  = body.newSide;
         }
-
-        std::cout
-            <<"["
-            <<traderId
-            <<"] MODIFY "
-            <<body.orderId
-            <<" "
-            <<body.symbol
-            <<" "
-            <<body.newPrice
-            <<" "
-            <<body.newQuantity
-            <<" "
-            <<body.newSide
-            <<std::endl;
     }
 
     void SendCancel()
     {
-        if(activeOrders.empty())
-            return;
+        if(activeOrders.empty()) return;
 
         auto it = RandomExisting();
 
@@ -307,28 +229,11 @@ private:
 
         std::memset(body.symbol,0,sizeof(body.symbol));
 
-        std::memcpy(
-            body.symbol,
-            it->second.symbol.c_str(),
-            it->second.symbol.size()
-        );
+        std::memcpy(body.symbol,it->second.symbol.c_str(),it->second.symbol.size());
 
-        auto packet =
-            Serializer::Serialize(
-                PacketTpe::CancelOrder,
-                body
-            );
+        auto packet = Serializer::Serialize(PacketTpe::CancelOrder, body);
 
         client.Send(packet);
-
-        std::cout
-            <<"["
-            <<traderId
-            <<"] CANCEL "
-            <<body.orderId
-            <<" "
-            <<body.symbol
-            <<std::endl;
 
         activeOrders.erase(it);
     }
@@ -363,25 +268,16 @@ int main()
     std::vector<std::thread> clients;
 
     auto start = std::chrono::high_resolution_clock::now();
-
-    std::cout << "=========================================\n";
+/*
     std::cout << "Starting Stress Test\n";
     std::cout << "Clients            : " << CLIENT_COUNT << '\n';
     std::cout << "Packets / Client   : " << PACKETS_PER_CLIENT << '\n';
-    std::cout << "Total Packets      : "
-              << CLIENT_COUNT * PACKETS_PER_CLIENT
-              << "\n";
-    std::cout << "=========================================\n";
+    std::cout << "Total Packets      : " << CLIENT_COUNT * PACKETS_PER_CLIENT << "\n";
+*/
 
     for(int i = 0; i < CLIENT_COUNT; ++i)
     {
-        clients.emplace_back(
-            ClientWorker,
-            i + 1,
-            SERVER_IP,
-            SERVER_PORT,
-            PACKETS_PER_CLIENT
-        );
+        clients.emplace_back(ClientWorker,i + 1,SERVER_IP,SERVER_PORT,PACKETS_PER_CLIENT);
 
         // Small stagger so all clients don't connect at the exact same instant.
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -389,16 +285,14 @@ int main()
 
     for(auto &t : clients)
     {
-        if(t.joinable())
+        if(t.joinable()){
             t.join();
+        }
     }
 
     auto end = std::chrono::high_resolution_clock::now();
 
-    auto elapsed =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            end - start
-        );
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     std::cout << "\n=========================================\n";
     std::cout << "Stress Test Finished\n";
