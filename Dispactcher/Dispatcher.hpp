@@ -20,10 +20,10 @@ class Dispatcher {
 	std::thread dispatcherThread;
 	
 	//hashing function for fast hasing of string to random number and bounding that in between shardcount gloabl varibale
-	size_t hashString(const std::string& symbol) {
+	size_t hashString(const uint64_t symbol) {
 		uint32_t h = 2166136261;
-		for (size_t i = 0; i < symbol.length() ; i++) {
-				h ^= uint32_t(symbol[i]);
+		for (size_t i = 0; i < symbol ; i++) {
+				h ^= uint32_t(symbol);
 				h *= 16777619;
 		}
 		return int(h % uint32_t(SHARD_COUNT));

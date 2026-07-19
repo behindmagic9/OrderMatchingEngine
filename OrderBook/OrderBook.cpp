@@ -44,13 +44,11 @@ void OrderBook::PrintOrderBook() {
 std::optional<Order> OrderBook::CancelOrder(int Orderid) {
     auto p = OrderPointersStore.find(Orderid);
     if (p == OrderPointersStore.end()) {
-        std::cout << "return" << std::endl;
         return std::nullopt;
     }
     auto it = p->second;
     Order cancelledOrder = *(it.iterator);
     if (it.side == 'B') {
-        std::cout << "from b" << std::endl;
         auto lst = BUY.find(it.price);
         if (lst != BUY.end()) {
             lst->second.erase(it.iterator);
@@ -60,7 +58,6 @@ std::optional<Order> OrderBook::CancelOrder(int Orderid) {
         }
     }
     else {
-        std::cout << "from s" << std::endl;
         auto lst = SELL.find(it.price);
         if (lst != SELL.end()) {
             lst->second.erase(it.iterator);

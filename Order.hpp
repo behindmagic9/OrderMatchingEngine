@@ -2,6 +2,7 @@
 
 #include<list>
 #include<string>
+#include<cstdint>
 #include<iostream>
 #include<vector>
 enum class Status {
@@ -14,13 +15,13 @@ enum class Status {
     REJECTED
 };
 
-enum class OrderType
+enum class OrderType : uint8_t
 {
     Limit,
     Market
 };
 
-enum class OrderTimeinFrame
+enum class OrderTimeinFrame : uint8_t
 {
     GTC, // Good Till Cancel
     FOK, // Fill or KILL
@@ -28,36 +29,36 @@ enum class OrderTimeinFrame
 };
 
 struct Order {
-    int orderId;
+    uint64_t orderId;
     char side;
-    int64_t price;
-    int quantity;
-    std::string symbol;
+    uint64_t price;
+    uint64_t quantity;
+    uint64_t symbol;
     OrderType otype;
     OrderTimeinFrame otf;
     Status status;
 };
 
 struct Trade {
-    int BuyId;
-    int SellId;
-    int quant;
-    int64_t price;
+    uint64_t BuyId;
+    uint64_t SellId;
+    uint64_t quant;
+    uint64_t price;
 };
 
 
 struct OrderEvent {
     Status oldStatus;
     Status newStatus;
-    int64_t price;
-    std::string symbol;
-    int originalquantity;
-    int execquantity;
-    int remquantity;
+    uint64_t price;
+    uint64_t symbol;
+    uint64_t originalquantity;
+    uint64_t execquantity;
+    uint64_t remquantity;
 };
 
 struct OrderRef {
-    int64_t price;
+    uint64_t price;
     char side;
     std::list<Order>::iterator iterator;
 };

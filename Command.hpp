@@ -10,16 +10,16 @@ struct NewOrder
 
 struct Cancel_Order
 {
-    int orderId;
-    std::string symbol;
+    uint64_t orderId;
+    uint64_t symbol;
 };
 
 struct Modify_Order
 {
-    int orderId;
-    int64_t newprice = -1;
-    std::string symbol;
-    int newquantity = -1;
+    uint64_t orderId;
+    uint64_t newprice = -1;
+    uint64_t symbol;
+    uint64_t newquantity = -1;
     char newside = '\0';
 };
 
@@ -60,17 +60,17 @@ struct Command
         return Command{ NewOrder{order, replace } };
     }
 
-    static Command Modify(int id,std::string symbol, int64_t price = -1, int quanitity = -1, char side = '\0')
+    static Command Modify(uint64_t id,uint64_t symbol, uint64_t price = -1, uint64_t quanitity = -1, char side = '\0')
     {
         return Command{ Modify_Order{ id ,price,std::move(symbol), quanitity, side } };
     }
 
-    static Command Cancel(int id, std::string symbol)
+    static Command Cancel(uint64_t id, uint64_t symbol)
     {
         return Command{ Cancel_Order{id,std::move(symbol) } };
     }
 
-    const std::string& Symbol() const {
+    const uint64_t Symbol() const {
         if (auto* n = std::get_if<NewOrder>(&data)) {
             return n->order.symbol;
         }

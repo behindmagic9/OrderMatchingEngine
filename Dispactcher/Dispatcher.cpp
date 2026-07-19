@@ -50,6 +50,8 @@ void Dispatcher::Close() {
 	}
 }
 
+
+/*
 void Dispatcher::PrintAllOrderBooks(){
 	for(int i=0;i<SHARD_COUNT;i++){
 		std::cout << "Shard count : " << i << std::endl;
@@ -58,6 +60,7 @@ void Dispatcher::PrintAllOrderBooks(){
 	}
 }
 
+
 void Dispatcher::PrintOrderHistory(){
 	for(int i=0;i<SHARD_COUNT;i++){
 		std::cout << "Shard count : " << i << std::endl;
@@ -65,7 +68,6 @@ void Dispatcher::PrintOrderHistory(){
 		std::cout << std::endl;
 	}
 }
-
 void MatchingEngine::PrintTrades() {
 	for (const auto& trad : trades)
 	{
@@ -79,3 +81,4 @@ void Dispatcher::printTrades() {
 		t.PrintTrades();
 	}
 }
+*/
