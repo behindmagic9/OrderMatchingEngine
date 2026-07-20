@@ -11,29 +11,28 @@
 const int SHARD_COUNT = 6;
 
 class Dispatcher {
-	// this will the be the one to which initial commands are to be published or to be stored 
-	CircularQueue<Command,8192> GlobalQueue;
 
 	// this will keep record of the symbol mapped to the respective engine instance
-	MatchingEngine engineArray[SHARD_COUNT];
 	std::thread engineTHreads[SHARD_COUNT];
 	std::atomic<bool> started {false};
 	std::thread dispatcherThread;
 	
 	//hashing function for fast hasing of string to random number and bounding that in between shardcount gloabl varibale
-	size_t hashString(const uint8_t symbol) {
+
+	public:
+	MatchingEngine engineArray[SHARD_COUNT];
+	
+	inline size_t hashString(const uint8_t symbol) {
+		/*
 		uint32_t h = 2166136261;
 		for (size_t i = 0; i < symbol ; i++) {
 				h ^= uint32_t(symbol);
 				h *= 16777619;
 		}
 		return int(h % uint32_t(SHARD_COUNT));
+		*/
+		return symbol % SHARD_COUNT;
 	}
-
-	void Dispatching() ;
-
-	public:
-
 	Dispatcher() { }
 	
 	~Dispatcher();
@@ -41,8 +40,6 @@ class Dispatcher {
 	void printTrades();
 
 	void Start() ;
-
-	void submit(Command&& cmd);
 
 	void Close();
 

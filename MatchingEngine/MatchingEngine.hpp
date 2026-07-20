@@ -6,6 +6,7 @@
 #include<vector>
 #include<unordered_set>
 #include<mutex>
+#include<array>
 #include<queue>
 #include<condition_variable>
 #include<iostream>
@@ -14,7 +15,7 @@
 
 class MatchingEngine {
 private:
-    std::unordered_map<uint8_t , OrderBook> orderBook; // sybol assiciated orderbook
+    std::array< OrderBook, 256> orderBook; // sybol assiciated orderbook
     //std::unordered_map<uint64_t, std::vector<OrderEvent>> orderHistory; // orderid, Orders vector    
     std::unordered_set<uint64_t> orderIds;
     CircularQueue<Command, 8192> qe;
@@ -24,6 +25,8 @@ private:
     //std::unordered_set<int> symbols_set; // its the set of number of symbols entered in system
     //std::vector<Trade> trades;
 public:
+
+    MatchingEngine();
 
     void Submit(Command&&);
 

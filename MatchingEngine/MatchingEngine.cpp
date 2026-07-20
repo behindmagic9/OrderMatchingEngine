@@ -314,3 +314,7 @@ void MatchingEngine::RecordTrade(Order& incoming, Order& recieving, uint64_t qua
     trades.push_back(t);
 }
 */
+
+MatchingEngine::MatchingEngine(){
+    orderIds.reserve(1026);
+}

@@ -4,6 +4,7 @@
 #include<atomic>
 #include<iostream>
 #include "../../Command.hpp"
+#include<array>
 #include "../../Network/Packet.hpp"
 #include "../../Helper/SymbolRegistry/SymbolRegistry.hpp"
 
@@ -20,7 +21,7 @@ class Deserializer
             {
                 WireNewOrder order;
                 std::memcpy(&order, body.data(), sizeof(order));
-                std::string symbol(order.symbol);
+                std::string_view symbol(order.symbol);
                 uint64_t orId = orderId.fetch_add(1);
                 auto id = _registry.GetSymbolId(symbol);
                 if(!id){
@@ -32,7 +33,7 @@ class Deserializer
             {
                 WireCancel order;
                 std::memcpy(&order, body.data(), sizeof(order)); 
-                std::string symbol(order.symbol);
+                std::string_view symbol(order.symbol);
                 auto id = _registry.GetSymbolId(symbol);
                 if(!id){
                     throw std::runtime_error("unkonw symbol");
@@ -43,7 +44,7 @@ class Deserializer
             {
                 WireModify order;
                 std::memcpy(&order, body.data(), sizeof(order));
-                std::string symbol(order.symbol);
+                std::string_view symbol(order.symbol);
                 uint64_t orId = orderId.fetch_add(1);
                 auto id = _registry.GetSymbolId(symbol);
                 return Command::Modify(orId, id.value(),order.newPrice, order.newQuantity, order.newSide);

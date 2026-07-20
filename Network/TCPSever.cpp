@@ -64,6 +64,8 @@ void TCPServer::Accept(){
 
 // client loops
 void TCPServer::ClientLoop(int clientFd){
+    std::vector<char> body;
+    body.reserve(4000);
     while(running){
         PacketHeader header;
         size_t n = recv(clientFd, &header, sizeof(header), MSG_WAITALL);
@@ -74,20 +76,20 @@ void TCPServer::ClientLoop(int clientFd){
         }
         // converting from networ byte order to host byte order(litte endian)
         header.length = ntohl(header.length);
+        body.resize(header.length);
 
         // using vetor of char as raw byte container
-        std::vector<char> body(header.length);
-
-        n = recv(clientFd, body.data(), body.size(), MSG_WAITALL);
+        n = recv(clientFd, body.data(), header.length, MSG_WAITALL);
 
         if(n <= 0) break;
         // parse 
-        Command cmd = _deserializer.Deserialize(header,body);
-        
+        Command cmd = (_deserializer.Deserialize(header,body));
+        auto shard = dispatcher.hashString(cmd.Symbol());
+
         // create command
-        dispatcher.submit(std::move(cmd));
+        dispatcher.engineArray[std::move(shard)].Submit(std::move(cmd));
     }
-    close(clientFd);
+    close(clientFd);    
 }
 
 void TCPServer::Stop(){

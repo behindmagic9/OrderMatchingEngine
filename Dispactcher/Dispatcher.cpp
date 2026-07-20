@@ -1,21 +1,5 @@
 #include "../Dispactcher/Dispatcher.hpp"
 
-void Dispatcher::Dispatching() {
-	while(true){
-		auto cmd = GlobalQueue.pop();
-		
-		if(!cmd){
-			break;
-		}
-
-		engineArray[hashString(cmd->Symbol())].Submit(std::move(*cmd));
-	}
-
-	for(auto& engine : engineArray){
-		engine.CloseQueue();
-	}
-}
-
 Dispatcher::~Dispatcher(){
 	Close();
 }
@@ -27,20 +11,14 @@ void Dispatcher::Start() {
 		engineTHreads[i] = std::thread(&MatchingEngine::Consumer, &engineArray[i]);
 	}
 
-	dispatcherThread = std::thread(&Dispatcher::Dispatching, this);
-}
-
-void Dispatcher::submit(Command&& cmd) {
-	GlobalQueue.push(std::move(cmd));
 }
 
 void Dispatcher::Close() {
 
 	if (!started.exchange(false)) return;
-	GlobalQueue.close();
 
-	if(dispatcherThread.joinable()){
-		dispatcherThread.join();
+	for(auto& engine : engineArray){
+		engine.CloseQueue();
 	}
 
 	for(auto& t : engineTHreads){

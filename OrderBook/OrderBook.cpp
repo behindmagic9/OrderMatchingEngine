@@ -69,3 +69,8 @@ std::optional<Order> OrderBook::CancelOrder(uint64_t Orderid) {
     OrderPointersStore.erase(p);
     return cancelledOrder;
 }
+
+
+OrderBook::OrderBook(){
+    OrderPointersStore.reserve(1026);
+}
