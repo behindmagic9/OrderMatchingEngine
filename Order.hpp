@@ -1,11 +1,15 @@
 #pragma once
 
-#include<list>
+#include<boost/intrusive/list.hpp>
 #include<string>
 #include<cstdint>
 #include<iostream>
 #include<vector>
+
+namespace bi = boost::intrusive;
+
 enum class Status {
+    NONE,
     NEW,
     OPEN,
     FILLED,
@@ -28,7 +32,7 @@ enum class OrderTimeinFrame : uint8_t
     IOC  // Immediate or KIll
 };
 
-struct Order {
+struct Order  : public bi::list_base_hook<bi::link_mode<bi::safe_link>>{ // this add a intrusive link hook
     uint64_t orderId;
     char side;
     uint32_t price;
@@ -36,7 +40,7 @@ struct Order {
     uint8_t symbol;
     OrderType otype;
     OrderTimeinFrame otf;
-    Status status;
+    Status status = Status::NONE;
 };
 
 struct Trade {
@@ -60,7 +64,7 @@ struct OrderEvent {
 struct OrderRef {
     uint32_t price;
     char side;
-    std::list<Order>::iterator iterator;
+    bi::list<Order>::iterator iterator;
 };
 
 inline bool Validator(const Order& order) {

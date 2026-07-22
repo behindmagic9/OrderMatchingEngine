@@ -23,22 +23,33 @@ class Deserializer
                 std::memcpy(&order, body.data(), sizeof(order));
                 std::string_view symbol(order.symbol);
                 uint64_t orId = orderId.fetch_add(1);
-                auto id = _registry.GetSymbolId(symbol);
-                if(!id){
+                auto symid = _registry.GetSymbolId(symbol);
+                if(!symid){
                     throw std::runtime_error("unkonw symbol");
                 }
-                return Command::New({orId, order.side, order.price, order.quantity, id.value(), static_cast<OrderType>(order.orderType), static_cast<OrderTimeinFrame>(order.tif)});
+                Order ord{};
+                ord.orderId = orId;
+                ord.side = order.side;
+                ord.price = order.price;
+                ord.quantity = order.quantity;
+                ord.symbol = symid.value();
+                ord.otype = static_cast<OrderType>(order.orderType);
+                ord.otf = static_cast<OrderTimeinFrame>(order.tif);
+                ord.status = Status::NEW;
+
+                return Command::New(ord);
+                //return Command::New({orId, order.side, order.price, order.quantity, symid.value(), static_cast<OrderType>(order.orderType), static_cast<OrderTimeinFrame>(order.tif)});
             }
             case PacketTpe::CancelOrder:
             {
                 WireCancel order;
                 std::memcpy(&order, body.data(), sizeof(order)); 
                 std::string_view symbol(order.symbol);
-                auto id = _registry.GetSymbolId(symbol);
-                if(!id){
+                auto symid = _registry.GetSymbolId(symbol);
+                if(!symid){
                     throw std::runtime_error("unkonw symbol");
                 }
-                return Command::Cancel(order.orderId, id.value());
+                return Command::Cancel(order.orderId, symid.value());
             }
             case PacketTpe::ModifyOrder: 
             {
@@ -46,8 +57,8 @@ class Deserializer
                 std::memcpy(&order, body.data(), sizeof(order));
                 std::string_view symbol(order.symbol);
                 uint64_t orId = orderId.fetch_add(1);
-                auto id = _registry.GetSymbolId(symbol);
-                return Command::Modify(orId, id.value(),order.newPrice, order.newQuantity, order.newSide);
+                auto symid = _registry.GetSymbolId(symbol);
+                return Command::Modify(orId, symid.value(),order.newPrice, order.newQuantity, order.newSide);
             }
             default:
                 throw std::runtime_error("ubknown pacet");

@@ -150,9 +150,11 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
             ord.quantity -= quant;
             int exec = quant;
             if (ord.quantity == 0) {
+                Order* ptr = &(ord);
                 //RecordOrderEvent(ord, Status::FILLED, exec);
-                GetOrderBook(ord.symbol).RemovePointer(ord.orderId);
+                GetOrderBook(ptr->symbol).RemovePointer(ord.orderId);
                 q.erase(current);
+                delete ptr;
                 continue;
             }
             else {
@@ -181,7 +183,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
         {
            // RecordOrderEvent(order, Status::PARTIAL_FILLED, originalQuantity - order.quantity, originalQuantity);
             // add to otder book
-            GetOrderBook(order.symbol).AddToOrderBook(order);
+            GetOrderBook(order.symbol).AddToOrderBook(std::move(order));
         }
         else if (order.otf == OrderTimeinFrame::IOC)
         {
@@ -202,7 +204,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
         {
             //RecordOrderEvent(order, Status::OPEN);
             // add to otder book
-            GetOrderBook(order.symbol).AddToOrderBook(order);
+            GetOrderBook(order.symbol).AddToOrderBook(std::move(order));
         }
         else if (order.otf == OrderTimeinFrame::IOC)
         {
@@ -316,5 +318,5 @@ void MatchingEngine::RecordTrade(Order& incoming, Order& recieving, uint64_t qua
 */
 
 MatchingEngine::MatchingEngine(){
-    orderIds.reserve(1026);
+    orderIds.reserve(4096);
 }

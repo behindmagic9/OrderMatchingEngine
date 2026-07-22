@@ -1,18 +1,19 @@
 #include "OrderBook.hpp"
 
-void OrderBook::AddToOrderBook(const Order& order) {
-    if (order.side == 'B') {
-        BUY[order.price].push_back(order);
-        auto it = std::prev(BUY[order.price].end());
-        OrderPointersStore[order.orderId] = { order.price,order.side,it };
+void OrderBook::AddToOrderBook(Order&& order) {
+    Order *p = new Order(std::move(order)); // making a heap copy cause now using the intrusive list 
+    if (p->side == 'B') {
+
+        BUY[p->price].push_back(*p);
+        auto it = BUY[p->price].iterator_to(*p);
+        OrderPointersStore[p->orderId] = { p->price,p->side,it };
     }
     else {
-        SELL[order.price].push_back(order);
-        auto it = std::prev(SELL[order.price].end());
-        OrderPointersStore[order.orderId] = { order.price,order.side,it };
+        SELL[p->price].push_back(*p);
+        auto it = SELL[p->price].iterator_to(*p);
+        OrderPointersStore[p->orderId] = { p->price,p->side,it };
     }
 }
-
 
 void OrderBook::PrintOrderBook() {
     std::cout << "BUY  >> ";
@@ -47,7 +48,8 @@ std::optional<Order> OrderBook::CancelOrder(uint64_t Orderid) {
         return std::nullopt;
     }
     auto it = p->second;
-    Order cancelledOrder = *(it.iterator);
+    Order *order = &(*it.iterator);
+    Order cancelledOrder = *(order);
     if (it.side == 'B') {
         auto lst = BUY.find(it.price);
         if (lst != BUY.end()) {
@@ -67,10 +69,11 @@ std::optional<Order> OrderBook::CancelOrder(uint64_t Orderid) {
         }
     }
     OrderPointersStore.erase(p);
+    delete order;
     return cancelledOrder;
 }
 
 
 OrderBook::OrderBook(){
-    OrderPointersStore.reserve(1026);
+    OrderPointersStore.reserve(4096);
 }
