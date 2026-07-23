@@ -1,30 +1,74 @@
-# OrderMatchingEngineReadMe
-order book array for mutliple symbols
+# **Order Exchange**
+  ---
 
-map<Prices, Orders> , it iwll be ordered_map as prices should be sorted and in orders will be FIFO , so as the order will  be sorted by timeor queue or <dequeue>
-have to prepare two maps , First for BUY and second for SELL side
+A multi-threaded order matching engine written in C++17. This project was built to understand how modern exchanges process orders, maintain order books, and match trades with low latency. The focus of the project is on the core matching engine, efficient data structures, and concurrent processing.
 
-For buy side we be looking at smallest price first (rbegin()) in the askSide or SELL map ,
- and for sell side we be start from looking at highest price (begin()) in buyside or BUY map
+---
+### **Features**
+- Limit and Market orders
+- Order Modify and Cancel
+- Good Till Cancel (GTC)
+- Immediate Or Cancel (IOC)
+- Fill Or Kill (FOK)
+- Price-Time Priority (FIFO)
+- Multi-symbol support
+- Symbol-based sharding
+- Lock-free SPSC queue between dispatcher and matching engine
 
-Then do it in chain until order fulfil if order remian will amrk as partial fill and store them in a Ordderbook map , as per the price and quantity and respective to its execution or whether to BUY or SELL
+---
+### **Architecture**
 
-Wait i do have to see if the orderbook stored one or in the map record is sell or buy to correctly execute order, otherwise, if there is only one order of 100 @103 , and another come for sell again to 100 @104,it will gonna see the begin() and execuet that instad of seeing it as buy or sell side 
-NOte- > have different map of BUY and SELL side to correctly execute the Orders
+  <img width="1287" height="791" alt="project1" src="https://github.com/user-attachments/assets/aa9532d7-ef9c-4a6c-86d2-b2fc3f6e80f3" />
 
-thas the basic skeleton i have to prepare first
 
-for skeleton let flow like
-accept the incoming order via Acceptorder function which will loop and see for any icoming order and if that order comes
-will divert it with the side whether or BUY or SELL to anther function of validate order
+### Matching Engine Flow
 
-Here will see respective to whether sell or buy order, will look in opposite map of that side to execute order , and if anything matches will execute it, 
-And if the price we get on first time is 
-if wanna sell at 100 @103 and looking in to first of BUY map wee see at 100 @100 and below that like 30 @99 , like the prices too gona be in sort order so.. make no sense to see below if the first one is lower than ask for 
-and vice versa for buy side , if askside or SELL map if the price is higher than buying at then no mean to look below , 
-will immeditely put that order in the ordeerbook resepctive of bUY or sell side , will insert the order into that [price]
-or wil then divert to another fuinction to save in orderbook ()
+  <img width="718" height="899" alt="Screenshot from 2026-07-24 00-31-43" src="https://github.com/user-attachments/assets/ab19359b-d398-407e-8e6d-aaf7655e0840" />
 
-And if user want to cancel the order will look for the ORderID in the respctiev map and remove that 
-for that on time of incoming order will have to encapsulate it with ID and time,
+ 
+---
+## **Benchmark**
 
+##### **Environment**
+
+**CPU** : AMD Ryzen 5 5500U
+
+**Memory** : 8 GB
+
+**OS** : Pop!_OS
+
+**Compiler** : g++ (C++17, -O2)
+
+**Benchmark Setup** :
+- Synthetic workload
+- Orders submitted directly to the matching engine
+- Networking excluded
+- Measures only the matching engine performance
+
+### **Result**
+**Orders Processed** : 2,000,000
+**Elapsed Time** : 0.2461 s
+**Throughput :** 8.12 Million Orders / Second
+![[Pasted image 20260724001128.png]]
+
+---
+#### **Future Plans**
+<img width="1287" height="1214" alt="Project2" src="https://github.com/user-attachments/assets/b68b7415-4231-444a-9bfd-ddedd8f5d311" />
+
+- TCP networking
+- Binary protocol improvements
+- Event-driven networking using epoll
+- Market data streaming
+- Performance profiling and further optimization
+
+---
+
+#### **Build**
+
+`g++ -O2 MatchingEngine/MatchingEngine.cpp OrderBook/OrderBook.cpp  Dispactcher/Dispatcher.cpp benchmark.cpp -I. -o order_exchange`
+
+  ---
+
+##### **Run:**
+
+`./order_exchange`
