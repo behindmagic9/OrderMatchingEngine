@@ -1,5 +1,4 @@
 # **Order Exchange**
-  ---
 
 A multi-threaded order matching engine written in C++17. This project was built to understand how modern exchanges process orders, maintain order books, and match trades with low latency. The focus of the project is on the core matching engine, efficient data structures, and concurrent processing.
 
@@ -49,7 +48,7 @@ A multi-threaded order matching engine written in C++17. This project was built 
 **Orders Processed** : 2,000,000
 **Elapsed Time** : 0.2461 s
 **Throughput :** 8.12 Million Orders / Second
-![[Pasted image 20260724001128.png]]
+<img width="735" height="208" alt="Screenshot from 2026-07-24 00-11-25" src="https://github.com/user-attachments/assets/c79a4de1-9477-4f68-9a6b-f50dbeddb7a1" />
 
 ---
 #### **Future Plans**
