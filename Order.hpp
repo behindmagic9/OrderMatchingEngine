@@ -5,6 +5,7 @@
 #include<cstdint>
 #include<iostream>
 #include<vector>
+#include<memory>
 
 namespace bi = boost::intrusive;
 
@@ -98,3 +99,24 @@ inline std::string StatusToString(Status status)
         return "UNKNOWN";
     }
 }
+
+class OrderPool{
+    std::vector<std::unique_ptr<Order>> storage;
+    std::vector<Order*> freeList;
+    
+    public:
+        Order* acquire(){
+            if(freeList.empty()){
+                storage.emplace_back(std::make_unique<Order>());
+                return storage.back().get();
+            }
+            Order* o = freeList.back();
+            freeList.pop_back();
+            return o;
+        }
+
+        void release(Order* o){
+            *o = Order{};
+            freeList.push_back(o);
+        }
+};

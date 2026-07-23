@@ -12,6 +12,7 @@ private:
     using OrderList = bi::list<Order>;
     std::map<uint64_t, OrderList, std::greater<uint64_t>> BUY;
     std::map<uint64_t, OrderList> SELL;
+    OrderPool pool;
 public:
     std::unordered_map<uint64_t, OrderRef> OrderPointersStore; // orderid, iterator
     void AddToOrderBook(Order&& order);
@@ -30,6 +31,10 @@ public:
 
     void RemovePointer(uint64_t id) {
         OrderPointersStore.erase(id);
+    }
+
+    void ReleaseOrder(Order* order){
+        pool.release(order);
     }
 };
 

@@ -1,16 +1,18 @@
 #include "OrderBook.hpp"
 
 void OrderBook::AddToOrderBook(Order&& order) {
-    Order *p = new Order(std::move(order)); // making a heap copy cause now using the intrusive list 
+    Order *p = pool.acquire(); // making a heap copy cause now using the intrusive list 
+    *p = std::move(order);
     if (p->side == 'B') {
-
-        BUY[p->price].push_back(*p);
-        auto it = BUY[p->price].iterator_to(*p);
+        auto price = p->price;
+        BUY[price].push_back(*p);
+        auto it = BUY[price].iterator_to(*p);
         OrderPointersStore[p->orderId] = { p->price,p->side,it };
     }
     else {
-        SELL[p->price].push_back(*p);
-        auto it = SELL[p->price].iterator_to(*p);
+        auto price = p->price;
+        SELL[price].push_back(*p);
+        auto it = SELL[price].iterator_to(*p);
         OrderPointersStore[p->orderId] = { p->price,p->side,it };
     }
 }
@@ -69,7 +71,7 @@ std::optional<Order> OrderBook::CancelOrder(uint64_t Orderid) {
         }
     }
     OrderPointersStore.erase(p);
-    delete order;
+    pool.release(order);
     return cancelledOrder;
 }
 

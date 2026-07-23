@@ -154,7 +154,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
                 //RecordOrderEvent(ord, Status::FILLED, exec);
                 GetOrderBook(ptr->symbol).RemovePointer(ord.orderId);
                 q.erase(current);
-                delete ptr;
+                GetOrderBook(ptr->symbol).ReleaseOrder(ptr);
                 continue;
             }
             else {
