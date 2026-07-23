@@ -7,8 +7,10 @@
 #include<unordered_set>
 #include<mutex>
 #include<array>
+#include<memory>
+#include<thread>
+#include<atomic>
 #include<queue>
-#include<condition_variable>
 #include<iostream>
 #include "../CircularQueue/circularQueue.hpp"
 #include "../OrderBook/OrderBook.hpp"
@@ -24,6 +26,7 @@ private:
     std::condition_variable cv;
     //std::unordered_set<int> symbols_set; // its the set of number of symbols entered in system
     //std::vector<Trade> trades;
+    std::atomic<bool> stop{false};
 public:
 
     MatchingEngine();
@@ -58,6 +61,5 @@ public:
 
     void PrintAllOrderBooks();
 
-    void CloseQueue();
-
+    void Stop();
 };

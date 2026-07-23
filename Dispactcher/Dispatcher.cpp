@@ -18,7 +18,7 @@ void Dispatcher::Close() {
 	if (!started.exchange(false)) return;
 
 	for(auto& engine : engineArray){
-		engine.CloseQueue();
+		engine.Stop();
 	}
 
 	for(auto& t : engineTHreads){

@@ -116,7 +116,14 @@ class OrderPool{
         }
 
         void release(Order* o){
-            *o = Order{};
+            o->orderId = 0;
+            o->price = 0;
+            o->quantity = 0;
+            o->side = 0;
+            o->symbol = 0;
+            o->otype = OrderType::Limit;
+            o->otf = OrderTimeinFrame::GTC;
+            o->status = Status::NONE;
             freeList.push_back(o);
         }
 };

@@ -17,10 +17,11 @@ void MatchingEngine::PrintOrderHistory() {
 */
 
 void MatchingEngine::Consumer() {
-    while (true) {
+    while (!stop.load(std::memory_order_relaxed)) {
         auto temp = qe.pop();
 
         if(!temp){
+            std::this_thread::yield;
             break;
         }
 
@@ -302,9 +303,6 @@ void MatchingEngine::PrintAllOrderBooks(){
 */
 
 
-void MatchingEngine::CloseQueue(){
-    qe.close();
-}
 /*
 void MatchingEngine::RecordTrade(Order& incoming, Order& recieving, uint64_t quantity, uint64_t price) {
     Trade t{
@@ -319,4 +317,8 @@ void MatchingEngine::RecordTrade(Order& incoming, Order& recieving, uint64_t qua
 
 MatchingEngine::MatchingEngine(){
     orderIds.reserve(4096);
+}
+
+void MatchingEngine::Stop(){
+    stop.store(true, std::memory_order_release);
 }
