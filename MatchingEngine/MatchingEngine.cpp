@@ -68,7 +68,7 @@ void MatchingEngine::ProcessBUY(Order& order)
 {
     auto& SELL = GetOrderBook(order.data.symbol).GetSellBook();
     MatchOrder(order, SELL,
-        [](int64_t buyPrice, int64_t sellPrice)
+        [](uint32_t buyPrice, uint32_t sellPrice)
         {
             return buyPrice >= sellPrice;
         }
@@ -79,7 +79,7 @@ void MatchingEngine::ProcessSELL(Order& order)
 {
     auto& BUY = GetOrderBook(order.data.symbol).GetBuyBook();
     MatchOrder(order, BUY,
-        [](int64_t sellPrice, int64_t buyPrice)
+        [](uint32_t sellPrice, uint32_t buyPrice)
         {
             return buyPrice >= sellPrice;
         }
@@ -89,7 +89,7 @@ void MatchingEngine::ProcessSELL(Order& order)
 template <typename OppositeBook, typename Compare>
 bool MatchingEngine::CanFullFillOrder(const Order& order, OppositeBook& oppositeBook, Compare comp)
 {
-    int remaining = order.data.quantity;
+    uint32_t remaining = order.data.quantity;
     for (auto it = oppositeBook.begin(); it != oppositeBook.end(); it++)
     {
         if (order.data.otype == OrderType::Limit && !comp(order.data.price, it->first))
@@ -131,7 +131,7 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
             return;
         }
     }
-    int originalQuantity = order.data.quantity;
+    uint32_t originalQuantity = order.data.quantity;
     auto it = oppositeBook.begin();
     while (order.data.quantity > 0 && it != oppositeBook.end())
     {
@@ -145,19 +145,19 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
         {
             auto current = q.begin();
             auto& ord = *current;
-            int quant = std::min(ord.data.quantity, order.data.quantity);
+            uint32_t quant = std::min(ord.data.quantity, order.data.quantity);
 
             // trade is heppenig so will record trade obejct here
-            int64_t tradePrice = ord.data.price;
+            uint32_t tradePrice = ord.data.price;
             //RecordTrade(order, ord, quant, tradePrice);
 
             order.data.quantity -= quant;
             ord.data.quantity -= quant;
-            int exec = quant;
+            uint32_t exec = quant;
             if (ord.data.quantity == 0) {
                 Order* ptr = &(ord);
                 //RecordOrderEvent(ord, Status::FILLED, exec);
-                GetOrderBook(ptr->data.symbol).RemovePointer(ord.data.orderId);
+                GetOrderBook(ptr->data.symbol).RemovePointer(ptr->data.orderId);
                 q.erase(current);
                 GetOrderBook(ptr->data.symbol).ReleaseOrder(ptr);
                 continue;

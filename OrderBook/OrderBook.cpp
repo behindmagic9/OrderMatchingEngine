@@ -4,13 +4,13 @@ void OrderBook::AddToOrderBook(Order&& order) {
     Order *p = pool.acquire(); // making a heap copy cause now using the intrusive list 
     p->data = std::move(order.data);
     if (p->data.side == 'B') {
-        auto price = p->data.price;
+        uint32_t price = p->data.price;
         BUY[price].push_back(*p);
         auto it = BUY[price].iterator_to(*p);
         OrderPointersStore[p->data.orderId] = { p->data.price,p->data.side,it };
     }
     else {
-        auto price = p->data.price;
+        uint32_t price = p->data.price;
         SELL[price].push_back(*p);
         auto it = SELL[price].iterator_to(*p);
         OrderPointersStore[p->data.orderId] = { p->data.price,p->data.side,it };
@@ -22,7 +22,7 @@ void OrderBook::PrintOrderBook() {
 
     for (const auto& p : BUY)
     {
-        int total = 0;
+        uint32_t total = 0;
         for (const auto& ord : p.second)
         {
             total += ord.data.quantity;
@@ -34,7 +34,7 @@ void OrderBook::PrintOrderBook() {
 
     for (const auto& p : SELL)
     {
-        int total = 0;
+        uint32_t total = 0;
         for (const auto& ord : p.second)
         {
             total += ord.data.quantity;
