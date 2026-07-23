@@ -20,7 +20,7 @@ class CircularQueue{
 
         std::optional<T> pop();
 
-        bool empty();
+        bool empty() const;
         bool full();
 
         size_t size();
@@ -63,7 +63,7 @@ std::optional<T> CircularQueue<T,Capacity>::pop(){
 }
 
 template<typename T, size_t Capacity>
-bool CircularQueue<T, Capacity>::empty(){
+bool CircularQueue<T, Capacity>::empty() const{
     return head.load(std::memory_order_acquire) == tail.load(std::memory_order_acquire);
 }
 

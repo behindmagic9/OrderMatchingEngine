@@ -60,3 +60,15 @@ void Dispatcher::printTrades() {
 	}
 }
 */
+
+uint64_t Dispatcher::ProcessedOrders() const
+{
+    uint64_t total = 0;
+
+    for (const auto& engine : engineArray)
+    {
+        total += engine.ProcessedOrders();
+    }
+
+    return total;
+}

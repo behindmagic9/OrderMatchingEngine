@@ -34,10 +34,12 @@ void MatchingEngine::Consumer() {
             if (!Validator(neworder->order))
             {
                 //RecordOrderEvent(neworder->order.data, Status::REJECTED, 0);
+                processedOrders.fetch_add(1, std::memory_order_release);
                 continue;
             }
             if (DuplicateOrder(neworder->order.orderId) && !neworder->fromReplace) {
                 //RecordOrderEvent(neworder->order.data, Status::REJECTED, 0);
+                processedOrders.fetch_add(1, std::memory_order_release);
                 continue;
             }
             orderIds.insert(neworder->order.orderId);
@@ -51,6 +53,7 @@ void MatchingEngine::Consumer() {
         }else if(auto* cancelOrder = std::get_if<Cancel_Order>(&temp->data)){
             CancelOrder(cancelOrder->orderId, cancelOrder->symbol);
         }
+        processedOrders.fetch_add(1, std::memory_order_release);
     }
 }
 
@@ -242,7 +245,9 @@ void MatchingEngine::RecordOrderEvent(Order& order, Status newStatus, uint64_t e
 */
 
 void MatchingEngine::Submit(Command&& cmd) {
-    qe.push(std::move(cmd));
+    while (!qe.push(std::move(cmd))){
+        std::this_thread::yield();
+    }
 }
 
 void MatchingEngine::ModifyOrder(uint64_t orderId,uint8_t symbol, uint32_t newprice, uint32_t newquantity, char newside)
@@ -326,4 +331,10 @@ MatchingEngine::MatchingEngine(){
 
 void MatchingEngine::Stop(){
     stop.store(true, std::memory_order_release);
+}
+
+
+bool MatchingEngine::QueueEmpty() const
+{
+    return qe.empty();
 }

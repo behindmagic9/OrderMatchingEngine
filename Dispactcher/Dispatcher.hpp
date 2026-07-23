@@ -46,4 +46,5 @@ class Dispatcher {
 	void PrintAllOrderBooks();
 
 	void PrintOrderHistory();
+	uint64_t ProcessedOrders() const;
 };

@@ -38,8 +38,6 @@ public:
     }
 
     ~OrderBook(){
-        std::cout << "BUY levels = " << BUY.size() << '\n';
-        std::cout << "SELL levels = " << SELL.size() << '\n';
 
         for (auto& [price, list] : BUY)
         {

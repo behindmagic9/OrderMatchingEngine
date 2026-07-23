@@ -27,6 +27,8 @@ private:
     //std::unordered_set<int> symbols_set; // its the set of number of symbols entered in system
     //std::vector<Trade> trades;
     std::atomic<bool> stop{false};
+    std::atomic<uint64_t> processedOrders{0};
+
 public:
 
     MatchingEngine();
@@ -62,4 +64,11 @@ public:
     void PrintAllOrderBooks();
 
     void Stop();
+
+    bool QueueEmpty() const;
+
+    uint64_t ProcessedOrders() const
+    {
+        return processedOrders.load(std::memory_order_acquire);
+    }
 };
