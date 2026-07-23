@@ -34,19 +34,16 @@ int main()
     }
 
     while (true)
-{
-    auto processed = dispatcher.ProcessedOrders();
+    {
+        auto processed = dispatcher.ProcessedOrders();
+        if (processed == ORDER_COUNT) break;
+        static uint64_t counter = 0;
 
-    if (processed == ORDER_COUNT)
-        break;
-
-    static uint64_t counter = 0;
-
-    if (++counter % 100000 == 0)
+        if (++counter % 100000 == 0){
+            std::this_thread::yield();
+        }
         std::cout << processed << '\n';
-
-    std::this_thread::yield();
-}
+    }
 
     auto end = high_resolution_clock::now();
 
@@ -57,7 +54,5 @@ int main()
     std::cout << "\n========== ENGINE BENCHMARK ==========\n";
     std::cout << "Orders        : " << ORDER_COUNT << '\n';
     std::cout << "Elapsed       : " << seconds << " sec\n";
-    std::cout << "Throughput    : "
-              << static_cast<double>(ORDER_COUNT) / seconds
-              << " orders/sec\n";
+    std::cout << "Throughput    : " << static_cast<double>(ORDER_COUNT) / seconds << " orders/sec\n";
 }   
