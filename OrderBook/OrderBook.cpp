@@ -2,18 +2,18 @@
 
 void OrderBook::AddToOrderBook(Order&& order) {
     Order *p = pool.acquire(); // making a heap copy cause now using the intrusive list 
-    *p = std::move(order);
-    if (p->side == 'B') {
-        auto price = p->price;
+    p->data = std::move(order.data);
+    if (p->data.side == 'B') {
+        auto price = p->data.price;
         BUY[price].push_back(*p);
         auto it = BUY[price].iterator_to(*p);
-        OrderPointersStore[p->orderId] = { p->price,p->side,it };
+        OrderPointersStore[p->data.orderId] = { p->data.price,p->data.side,it };
     }
     else {
-        auto price = p->price;
+        auto price = p->data.price;
         SELL[price].push_back(*p);
         auto it = SELL[price].iterator_to(*p);
-        OrderPointersStore[p->orderId] = { p->price,p->side,it };
+        OrderPointersStore[p->data.orderId] = { p->data.price,p->data.side,it };
     }
 }
 
@@ -25,7 +25,7 @@ void OrderBook::PrintOrderBook() {
         int total = 0;
         for (const auto& ord : p.second)
         {
-            total += ord.quantity;
+            total += ord.data.quantity;
         }
         std::cout << "price : " << p.first << " quanitity " << total << std::endl;
     }
@@ -37,21 +37,21 @@ void OrderBook::PrintOrderBook() {
         int total = 0;
         for (const auto& ord : p.second)
         {
-            total += ord.quantity;
+            total += ord.data.quantity;
         }
         std::cout << "price : " << p.first << " quanitity " << total << std::endl;
     }
     std::cout << std::endl;
 }
 
-std::optional<Order> OrderBook::CancelOrder(uint64_t Orderid) {
+std::optional<OrderData> OrderBook::CancelOrder(uint64_t Orderid) {
     auto p = OrderPointersStore.find(Orderid);
     if (p == OrderPointersStore.end()) {
         return std::nullopt;
     }
     auto it = p->second;
     Order *order = &(*it.iterator);
-    Order cancelledOrder = *(order);
+    OrderData cancelorder = order->data;
     if (it.side == 'B') {
         auto lst = BUY.find(it.price);
         if (lst != BUY.end()) {
@@ -72,7 +72,7 @@ std::optional<Order> OrderBook::CancelOrder(uint64_t Orderid) {
     }
     OrderPointersStore.erase(p);
     pool.release(order);
-    return cancelledOrder;
+    return cancelorder;
 }
 
 

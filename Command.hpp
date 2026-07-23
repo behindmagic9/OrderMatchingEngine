@@ -4,7 +4,7 @@
 
 struct NewOrder
 {
-    Order order;
+    OrderData order;
     bool fromReplace = false;
 };
 
@@ -55,7 +55,7 @@ struct Command
     //    ModifyOrder modifyOrder;
     //};
 
-    static Command New(const Order& order, bool replace = false)
+    static Command New(OrderData order, bool replace = false)
     {
         return Command{ NewOrder{order, replace } };
     }

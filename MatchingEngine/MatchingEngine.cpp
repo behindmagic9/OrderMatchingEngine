@@ -17,12 +17,14 @@ void MatchingEngine::PrintOrderHistory() {
 */
 
 void MatchingEngine::Consumer() {
-    while (!stop.load(std::memory_order_relaxed)) {
+    while (true) {
+
+        if (stop.load(std::memory_order_acquire) && qe.empty()) break;
         auto temp = qe.pop();
 
         if(!temp){
-            std::this_thread::yield;
-            break;
+            std::this_thread::yield();
+            continue;
         }
 
         // now changing everyone from . to -> cause the sd::optional in pop return the pointer which need this ->
@@ -31,16 +33,18 @@ void MatchingEngine::Consumer() {
             //handle new order
             if (!Validator(neworder->order))
             {
-                //RecordOrderEvent(neworder->order, Status::REJECTED, 0);
+                //RecordOrderEvent(neworder->order.data, Status::REJECTED, 0);
                 continue;
             }
             if (DuplicateOrder(neworder->order.orderId) && !neworder->fromReplace) {
-                //RecordOrderEvent(neworder->order, Status::REJECTED, 0);
+                //RecordOrderEvent(neworder->order.data, Status::REJECTED, 0);
                 continue;
             }
             orderIds.insert(neworder->order.orderId);
-            //symbols_set.insert(neworder->order.symbol);
-            ProcessOrder(neworder->order);
+            //symbols_set.insert(neworder->order.data.symbol);
+            Order order{};
+            order.data = std::move(neworder->order);
+            ProcessOrder(order);
         }
         else if(auto* modifyOrder = std::get_if<Modify_Order>(&temp->data)){
             ModifyOrder(modifyOrder->orderId, modifyOrder->symbol, modifyOrder->newprice, modifyOrder->newquantity, modifyOrder->newside);
@@ -51,7 +55,7 @@ void MatchingEngine::Consumer() {
 }
 
 void MatchingEngine::ProcessOrder(Order& order) {
-    if (order.side == 'B')
+    if (order.data.side == 'B')
     {
         ProcessBUY(order);
     }
@@ -62,7 +66,7 @@ void MatchingEngine::ProcessOrder(Order& order) {
 
 void MatchingEngine::ProcessBUY(Order& order)
 {
-    auto& SELL = GetOrderBook(order.symbol).GetSellBook();
+    auto& SELL = GetOrderBook(order.data.symbol).GetSellBook();
     MatchOrder(order, SELL,
         [](int64_t buyPrice, int64_t sellPrice)
         {
@@ -73,7 +77,7 @@ void MatchingEngine::ProcessBUY(Order& order)
 
 void MatchingEngine::ProcessSELL(Order& order)
 {
-    auto& BUY = GetOrderBook(order.symbol).GetBuyBook();
+    auto& BUY = GetOrderBook(order.data.symbol).GetBuyBook();
     MatchOrder(order, BUY,
         [](int64_t sellPrice, int64_t buyPrice)
         {
@@ -85,16 +89,16 @@ void MatchingEngine::ProcessSELL(Order& order)
 template <typename OppositeBook, typename Compare>
 bool MatchingEngine::CanFullFillOrder(const Order& order, OppositeBook& oppositeBook, Compare comp)
 {
-    int remaining = order.quantity;
+    int remaining = order.data.quantity;
     for (auto it = oppositeBook.begin(); it != oppositeBook.end(); it++)
     {
-        if (order.otype == OrderType::Limit && !comp(order.price, it->first))
+        if (order.data.otype == OrderType::Limit && !comp(order.data.price, it->first))
         {
             break;
         }
         for (auto& ord : it->second)
         {
-            remaining -= ord.quantity;
+            remaining -= ord.data.quantity;
             if (remaining <= 0)
             {
                 return true;
@@ -118,44 +122,44 @@ return ..........
 template <typename OppositeBook, typename Compare>
 void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compare comp)
 {
-    if (order.otf == OrderTimeinFrame::FOK)
+    if (order.data.otf == OrderTimeinFrame::FOK)
     {
         if (!CanFullFillOrder(order, oppositeBook, comp))
         {
             //RecordOrderEvent(order, Status::CANCELLED);
-            order.quantity = 0;
+            order.data.quantity = 0;
             return;
         }
     }
-    int originalQuantity = order.quantity;
+    int originalQuantity = order.data.quantity;
     auto it = oppositeBook.begin();
-    while (order.quantity > 0 && it != oppositeBook.end())
+    while (order.data.quantity > 0 && it != oppositeBook.end())
     {
-        if (order.otype == OrderType::Limit && !comp(order.price, it->first))
+        if (order.data.otype == OrderType::Limit && !comp(order.data.price, it->first))
         {
             break;
         }
         // rest market order type will skip above condition and jump to this and execute direclty wiht no price thing
         auto& q = it->second;
-        while (order.quantity > 0 && !q.empty())
+        while (order.data.quantity > 0 && !q.empty())
         {
             auto current = q.begin();
             auto& ord = *current;
-            int quant = std::min(ord.quantity, order.quantity);
+            int quant = std::min(ord.data.quantity, order.data.quantity);
 
             // trade is heppenig so will record trade obejct here
-            int64_t tradePrice = ord.price;
+            int64_t tradePrice = ord.data.price;
             //RecordTrade(order, ord, quant, tradePrice);
 
-            order.quantity -= quant;
-            ord.quantity -= quant;
+            order.data.quantity -= quant;
+            ord.data.quantity -= quant;
             int exec = quant;
-            if (ord.quantity == 0) {
+            if (ord.data.quantity == 0) {
                 Order* ptr = &(ord);
                 //RecordOrderEvent(ord, Status::FILLED, exec);
-                GetOrderBook(ptr->symbol).RemovePointer(ord.orderId);
+                GetOrderBook(ptr->data.symbol).RemovePointer(ord.data.orderId);
                 q.erase(current);
-                GetOrderBook(ptr->symbol).ReleaseOrder(ptr);
+                GetOrderBook(ptr->data.symbol).ReleaseOrder(ptr);
                 continue;
             }
             else {
@@ -170,48 +174,48 @@ void MatchingEngine::MatchOrder(Order& order, OppositeBook& oppositeBook, Compar
         }
     }
 
-    if (order.quantity == 0) {
+    if (order.data.quantity == 0) {
         //RecordOrderEvent(order, Status::FILLED, originalQuantity);
     }
-    else if (order.quantity < originalQuantity)
+    else if (order.data.quantity < originalQuantity)
     {
-        if (order.otype == OrderType::Market)
+        if (order.data.otype == OrderType::Market)
         {
             //RecordOrderEvent(order, Status::PARTIAL_FILLED_Cancel, originalQuantity - order.quantity, originalQuantity);
-            order.quantity = 0;
+            order.data.quantity = 0;
         }
-        else if (order.otf == OrderTimeinFrame::GTC)
+        else if (order.data.otf == OrderTimeinFrame::GTC)
         {
            // RecordOrderEvent(order, Status::PARTIAL_FILLED, originalQuantity - order.quantity, originalQuantity);
             // add to otder book
-            GetOrderBook(order.symbol).AddToOrderBook(std::move(order));
+            GetOrderBook(order.data.symbol).AddToOrderBook(std::move(order));
         }
-        else if (order.otf == OrderTimeinFrame::IOC)
+        else if (order.data.otf == OrderTimeinFrame::IOC)
         {
             // cancle order now
             //std::cout << "filled is : " << originalQuantity - order.quantity << ": remainging are cancelled : " << order.quantity << std::endl;
             //RecordOrderEvent(order, Status::PARTIAL_FILLED_Cancel, originalQuantity - order.quantity, originalQuantity);
-            order.quantity = 0; // reseting the quantity
+            order.data.quantity = 0; // reseting the quantity
         }
     }
     else
     {
-        if (order.otype == OrderType::Market)
+        if (order.data.otype == OrderType::Market)
         {
             //RecordOrderEvent(order, Status::CANCELLED, 0);
-            order.quantity = 0;
+            order.data.quantity = 0;
         }
-        else if (order.otf == OrderTimeinFrame::GTC)
+        else if (order.data.otf == OrderTimeinFrame::GTC)
         {
             //RecordOrderEvent(order, Status::OPEN);
             // add to otder book
-            GetOrderBook(order.symbol).AddToOrderBook(std::move(order));
+            GetOrderBook(order.data.symbol).AddToOrderBook(std::move(order));
         }
-        else if (order.otf == OrderTimeinFrame::IOC)
+        else if (order.data.otf == OrderTimeinFrame::IOC)
         {
             // cancle order now
             //RecordOrderEvent(order, Status::CANCELLED, 0);
-            order.quantity = 0; // reseting the quantity
+            order.data.quantity = 0; // reseting the quantity
         }
     }
 }
@@ -250,38 +254,39 @@ void MatchingEngine::ModifyOrder(uint64_t orderId,uint8_t symbol, uint32_t newpr
     }
 
     // if exist ,then using the pointer from orderpointerstore get that order
-    Order oldOrder = *(it->second.iterator);
-    bool priceChanged = (newprice != -1 && newprice != oldOrder.price);
-    bool quantityIncreased = (newquantity != -1 && newquantity > oldOrder.quantity);
-    bool sideChanged = (newside != '\0' && newside != oldOrder.side);
+    auto oldOrder = (it->second.iterator);
+    bool priceChanged = (newprice != -1 && newprice != oldOrder->data.price);
+    bool quantityIncreased = (newquantity != -1 && newquantity > oldOrder->data.quantity);
+    bool sideChanged = (newside != '\0' && newside != oldOrder->data.side);
 
     if (!priceChanged && !quantityIncreased && !sideChanged) {
         if (newquantity != -1) {
             if (newquantity <= 0) {
                 return;
             }
-            it->second.iterator->quantity = newquantity;
+            it->second.iterator->data.quantity = newquantity;
         }
         return;
     }
+    OrderData replacement = oldOrder->data;
     if (!(newprice == -1)) {
-        oldOrder.price = newprice;
+        replacement.price = newprice;
     }
     if (!(newquantity == -1)) {
-        oldOrder.quantity = newquantity;
+        replacement.quantity = newquantity;
     }
     if (!(newside == '\0')) {
-        oldOrder.side = newside;
+        replacement.side = newside;
     }
 
-    if (!Validator(oldOrder)) {
+    if (!Validator(replacement)) {
         return;
     }
 
     //Nee cancel order ad  repalce
-    CancelOrder(orderId, oldOrder.symbol);
-    oldOrder.status = Status::NEW;
-    Submit(Command::New(oldOrder, true));
+    CancelOrder(orderId, replacement.symbol);
+    replacement.status = Status::NEW;
+    Submit(Command::New(std::move(replacement), true));
 }
 
 void MatchingEngine::CancelOrder(uint64_t orderId, uint8_t symbol) {

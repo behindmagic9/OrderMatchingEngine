@@ -34,6 +34,17 @@ enum class OrderTimeinFrame : uint8_t
 };
 
 struct Order  : public bi::list_base_hook<bi::link_mode<bi::safe_link>>{ // this add a intrusive link hook
+    OrderData data;
+
+    Order() = default;
+    //deleting the copy and move assignment operator.. case that will gonna disrupt the cycle of the item
+    Order(const Order&) = delete;
+    Order& operator=(const Order&) = delete;
+    Order(Order&&) = delete;
+    Order& operator=(Order&&) = delete;
+};
+
+struct OrderData {
     uint64_t orderId;
     char side;
     uint32_t price;
@@ -68,7 +79,7 @@ struct OrderRef {
     bi::list<Order>::iterator iterator;
 };
 
-inline bool Validator(const Order& order) {
+inline bool Validator(const OrderData& order) {
     if (order.orderId <= 0) return false;
     if (order.quantity <= 0) return false;
     if (order.side != 'B' && order.side != 'S') return false;
@@ -116,14 +127,8 @@ class OrderPool{
         }
 
         void release(Order* o){
-            o->orderId = 0;
-            o->price = 0;
-            o->quantity = 0;
-            o->side = 0;
-            o->symbol = 0;
-            o->otype = OrderType::Limit;
-            o->otf = OrderTimeinFrame::GTC;
-            o->status = Status::NONE;
+            o->unlink();
+            o->data = {};
             freeList.push_back(o);
         }
 };

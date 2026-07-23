@@ -18,7 +18,7 @@ public:
     void AddToOrderBook(Order&& order);
     OrderBook();
     // std::optional is used to represent an object that whether it contain a value or not, so here it either return a order or return nulloptional
-    std::optional<Order> CancelOrder(uint64_t Orderid);
+    std::optional<OrderData> CancelOrder(uint64_t Orderid);
     void PrintOrderBook();
 
     //Getters

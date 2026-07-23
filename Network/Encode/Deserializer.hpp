@@ -27,7 +27,7 @@ class Deserializer
                 if(!symid){
                     throw std::runtime_error("unkonw symbol");
                 }
-                Order ord{};
+                OrderData ord{};
                 ord.orderId = orId;
                 ord.side = order.side;
                 ord.price = order.price;
@@ -36,7 +36,6 @@ class Deserializer
                 ord.otype = static_cast<OrderType>(order.orderType);
                 ord.otf = static_cast<OrderTimeinFrame>(order.tif);
                 ord.status = Status::NEW;
-
                 return Command::New(ord);
                 //return Command::New({orId, order.side, order.price, order.quantity, symid.value(), static_cast<OrderType>(order.orderType), static_cast<OrderTimeinFrame>(order.tif)});
             }
@@ -56,9 +55,8 @@ class Deserializer
                 WireModify order;
                 std::memcpy(&order, body.data(), sizeof(order));
                 std::string_view symbol(order.symbol);
-                uint64_t orId = orderId.fetch_add(1);
                 auto symid = _registry.GetSymbolId(symbol);
-                return Command::Modify(orId, symid.value(),order.newPrice, order.newQuantity, order.newSide);
+                return Command::Modify(order.orderId, symid.value(),order.newPrice, order.newQuantity, order.newSide);
             }
             default:
                 throw std::runtime_error("ubknown pacet");
