@@ -33,6 +33,17 @@ enum class OrderTimeinFrame : uint8_t
     IOC  // Immediate or KIll
 };
 
+struct OrderData {
+    uint64_t orderId;
+    char side;
+    uint32_t price;
+    uint32_t quantity;
+    uint8_t symbol;
+    OrderType otype;
+    OrderTimeinFrame otf;
+    Status status = Status::NONE;
+};
+
 struct Order  : public bi::list_base_hook<bi::link_mode<bi::safe_link>>{ // this add a intrusive link hook
     OrderData data;
 
@@ -44,16 +55,6 @@ struct Order  : public bi::list_base_hook<bi::link_mode<bi::safe_link>>{ // this
     Order& operator=(Order&&) = delete;
 };
 
-struct OrderData {
-    uint64_t orderId;
-    char side;
-    uint32_t price;
-    uint32_t quantity;
-    uint8_t symbol;
-    OrderType otype;
-    OrderTimeinFrame otf;
-    Status status = Status::NONE;
-};
 
 struct Trade {
     uint64_t BuyId;
@@ -127,7 +128,7 @@ class OrderPool{
         }
 
         void release(Order* o){
-            o->unlink();
+            //o->unlink();
             o->data = {};
             freeList.push_back(o);
         }

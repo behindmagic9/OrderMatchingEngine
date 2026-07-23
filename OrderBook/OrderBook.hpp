@@ -36,5 +36,28 @@ public:
     void ReleaseOrder(Order* order){
         pool.release(order);
     }
+
+    ~OrderBook(){
+        std::cout << "BUY levels = " << BUY.size() << '\n';
+        std::cout << "SELL levels = " << SELL.size() << '\n';
+
+        for (auto& [price, list] : BUY)
+        {
+            while (!list.empty())
+            {
+                Order& o = list.front();
+                list.pop_front();
+            }
+        }
+
+        for (auto& [price, list] : SELL)
+        {
+            while (!list.empty())
+            {
+                Order& o = list.front();
+                list.pop_front();
+            }
+        }
+    }
 };
 
